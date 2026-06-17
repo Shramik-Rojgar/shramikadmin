@@ -37,7 +37,10 @@ export default function Workers() {
 
   const approve = async (worker) => {
     setActing(worker.id);
-    await supabase.from('labourers').update({ status: 'approved', rejection_reason: null }).eq('id', worker.id);
+    const { error } = await supabase.functions.invoke('approve-labourer', {
+      body: { labourer_id: worker.id },
+    });
+    if (error) console.error('Approve failed:', error.message);
     setActing(null);
     fetchWorkers();
   };
