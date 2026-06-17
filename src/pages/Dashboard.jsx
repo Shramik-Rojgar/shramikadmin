@@ -37,7 +37,7 @@ export default function Dashboard() {
   useEffect(() => {
     supabase
       .from('labourers')
-      .select('id, full_name, skill_1, status, created_at')
+      .select('id, full_name, skill_1, city, status, created_at')
       .order('created_at', { ascending: false })
       .limit(10)
       .then(({ data }) => {
@@ -125,6 +125,7 @@ export default function Dashboard() {
                 <tr>
                   <th>Name</th>
                   <th>Primary Skill</th>
+                  <th>City</th>
                   <th>Status</th>
                   <th>Registered</th>
                 </tr>
@@ -134,6 +135,7 @@ export default function Dashboard() {
                   <tr key={r.id}>
                     <td className="font-semibold">{r.full_name}</td>
                     <td>{r.skill_1 ?? '—'}</td>
+                    <td className="text-[var(--mut)]">{r.city ?? '—'}</td>
                     <td>
                       <span className={STATUS_BADGE[r.status] ?? 'badge badge-gray'}>
                         {r.status}
