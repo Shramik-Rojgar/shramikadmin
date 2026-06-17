@@ -1,0 +1,44 @@
+:root {
+  /* FONT FAMILIES */
+  --disp: "Space Grotesk", "Baloo 2", system-ui, sans-serif;
+  --body: "Manrope", "Mukta", system-ui, sans-serif;
+
+  /* 1. PRIMARY BACKGROUNDS & OVERLAYS */
+  --page: #FFFAEF;
+  --blob-1: radial-gradient(circle, #FFCB5E66, transparent 64%);
+  --blob-2: radial-gradient(circle, #FFB05444, transparent 64%);
+  --blob-3: radial-gradient(circle, #FFD98A55, transparent 64%);
+  --blob-4: radial-gradient(circle, #FFC15e4d, transparent 64%);
+
+  /* 2. CORE BRAND & TYPOGRAPHY COLORS */
+  --ink: #14101C;
+  --mut: #6E6680;
+  --faint: #9A90AC;
+  --accent: #C91D5E;
+
+  /* 3. ACCENT & BRAND REPRESENTATIVE COLORS */
+  --saffron: #FF8A1E;
+  --rani: #E5397B;
+  --violet: #7A3BFF;
+  --green: #16B364;
+  --green-soft: #E4F7EC;
+
+  /* 4. GRADIENTS */
+  --grad: linear-gradient(120deg, #E5397B, #FF8A1E);
+  --grad-soft: linear-gradient(120deg, rgba(229,57,123,0.12), rgba(255,138,30,0.12));
+
+  /* 5. GLASSMORPHISM & CONTAINER STYLING */
+  --card: rgba(255, 255, 255, 0.58);
+  --card-strong: rgba(255, 255, 255, 0.74);
+  --card-border: rgba(255, 255, 255, 0.78);
+  --input-bg: rgba(255, 255, 255, 0.85);
+  --input-border: rgba(20, 16, 28, 0.10);
+  --chip-bg: rgba(255, 255, 255, 0.62);
+  --chip-border: rgba(255, 255, 255, 0.85);
+  --divider: rgba(20, 16, 28, 0.08);
+
+  /* 6. FOOTER TRICOLOR ACCENT */
+  --footer-saffron: #FF9933;
+  --footer-white: #E9EDF1;
+  --footer-green: #138808;
+}
