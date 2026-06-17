@@ -83,9 +83,10 @@ export default function Workers() {
             onClick={() => setFilter(f)}
             className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all ${
               filter === f
-                ? 'bg-[var(--grad)] text-white shadow-sm'
+                ? 'text-white shadow-sm'
                 : 'glass text-[var(--mut)] hover:text-[var(--ink)]'
             }`}
+            style={filter === f ? { background: 'var(--grad)' } : {}}
           >
             {f}
           </button>
