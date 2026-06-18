@@ -33,16 +33,25 @@ const fmt = (iso) => iso
 export default function Dashboard() {
   const [recent,       setRecent]       = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [totalWorkers, setTotalWorkers] = useState(null);
-  const [activeHirers, setActiveHirers] = useState(null);
+  const [totalWorkers,      setTotalWorkers]      = useState(null);
+  const [activeHirers,      setActiveHirers]      = useState(null);
+  const [workersThisWeek,   setWorkersThisWeek]   = useState(null);
+  const [hirersThisWeek,    setHirersThisWeek]    = useState(null);
 
   useEffect(() => {
-    // Live counts
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
     supabase.from('labourers').select('*', { count: 'exact', head: true }).eq('status', 'approved')
       .then(({ count }) => setTotalWorkers(count ?? 0));
 
+    supabase.from('labourers').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', weekAgo)
+      .then(({ count }) => setWorkersThisWeek(count ?? 0));
+
     supabase.from('hirers').select('*', { count: 'exact', head: true }).eq('status', 'active')
       .then(({ count }) => setActiveHirers(count ?? 0));
+
+    supabase.from('hirers').select('*', { count: 'exact', head: true }).eq('status', 'active').gte('created_at', weekAgo)
+      .then(({ count }) => setHirersThisWeek(count ?? 0));
 
     // Recent registrations
     supabase
@@ -72,6 +81,10 @@ export default function Dashboard() {
             s.label === 'Total Workers' ? totalWorkers :
             s.label === 'Active Hirers' ? activeHirers :
             null;
+          const liveDelta =
+            s.label === 'Total Workers' ? workersThisWeek :
+            s.label === 'Active Hirers' ? hirersThisWeek :
+            null;
           const isLive = liveValue !== null;
           return (
             <div key={s.label} className="stat-card glass">
@@ -87,7 +100,12 @@ export default function Dashboard() {
                   : s.value
                 }
               </span>
-              <span className="delta">{s.delta}</span>
+              <span className="delta">
+                {liveDelta !== null
+                  ? `+${liveDelta.toLocaleString('en-IN')} this week`
+                  : s.delta
+                }
+              </span>
             </div>
           );
         })}
