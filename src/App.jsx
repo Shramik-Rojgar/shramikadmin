@@ -22,6 +22,50 @@ function Placeholder({ title }) {
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = loading
   const [page, setPage]       = useState('dashboard');
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  // ── Detect mobile on resize ────────────────────────────
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // ── Mobile? Block everything ───────────────────────────
+  if (isMobile) {
+    return (
+      <div className="mobile-blocker" style={{ display: 'flex' }}>
+        <BackgroundOrbs />
+        <div className="mobile-blocker-card">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+            style={{ background: 'var(--grad)' }}
+          >
+            <Monitor size={28} color="#fff" strokeWidth={2} />
+          </div>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <ShieldCheck size={18} className="text-[var(--accent)]" strokeWidth={2.5} />
+            <span
+              className="font-display font-black text-lg tracking-tight"
+              style={{
+                background: 'var(--grad)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              SHRAMIK
+            </span>
+          </div>
+          <h2 className="font-display font-bold text-xl text-[var(--ink)] mb-2">
+            Desktop Only
+          </h2>
+          <p className="text-sm text-[var(--mut)] font-semibold leading-relaxed max-w-xs mx-auto">
+            The Admin Console is optimized for larger screens. Please switch to a <strong className="text-[var(--ink)]">desktop</strong> or <strong className="text-[var(--ink)]">tablet</strong> to continue.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // ── Restore session on mount & listen for changes ──────
   useEffect(() => {
@@ -61,10 +105,10 @@ export default function App() {
       case 'dashboard':       return <Dashboard />;
       case 'workers-manage':  return <WorkersManage />;
       case 'workers-approve': return <Workers />;
-      case 'workers':         return <WorkersManage />;  // default workers → manage
+      case 'workers':         return <WorkersManage />;
       case 'hirers':          return <HirersManage />;
-      case 'hirers-manage':  return <HirersManage />;
-      case 'hirers-approve': return <Hirers />;
+      case 'hirers-manage':   return <HirersManage />;
+      case 'hirers-approve':  return <Hirers />;
       case 'jobs':            return <Placeholder title="Job Postings" />;
       case 'analytics':       return <Placeholder title="Analytics" />;
       case 'settings':        return <Placeholder title="Settings" />;
@@ -73,47 +117,12 @@ export default function App() {
   };
 
   return (
-    <>
-      {/* Mobile blocker — visible only on small screens */}
-      <div className="mobile-blocker">
-        <BackgroundOrbs />
-        <div className="mobile-blocker-card">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'var(--grad)' }}
-          >
-            <Monitor size={28} color="#fff" strokeWidth={2} />
-          </div>
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <ShieldCheck size={18} className="text-[var(--accent)]" strokeWidth={2.5} />
-            <span
-              className="font-display font-black text-lg tracking-tight"
-              style={{
-                background: 'var(--grad)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              SHRAMIK
-            </span>
-          </div>
-          <h2 className="font-display font-bold text-xl text-[var(--ink)] mb-2">
-            Desktop Only
-          </h2>
-          <p className="text-sm text-[var(--mut)] font-semibold leading-relaxed max-w-xs mx-auto">
-            The Admin Console is optimized for larger screens. Please switch to a <strong className="text-[var(--ink)]">desktop</strong> or <strong className="text-[var(--ink)]">tablet</strong> to continue.
-          </p>
-        </div>
-      </div>
-
-      {/* Admin shell — hidden on phones via CSS */}
-      <div className="admin-shell min-h-screen font-sans text-[var(--ink)]">
-        <BackgroundOrbs />
-        <Sidebar active={page} onNav={setPage} onLogout={handleLogout} />
-        <main className="main-content">
-          {renderPage()}
-        </main>
-      </div>
-    </>
+    <div className="min-h-screen font-sans text-[var(--ink)]">
+      <BackgroundOrbs />
+      <Sidebar active={page} onNav={setPage} onLogout={handleLogout} />
+      <main className="main-content">
+        {renderPage()}
+      </main>
+    </div>
   );
 }
