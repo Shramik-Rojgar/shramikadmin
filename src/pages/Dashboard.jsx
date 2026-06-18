@@ -31,10 +31,20 @@ const fmt = (iso) => iso
   : '—';
 
 export default function Dashboard() {
-  const [recent,  setRecent]  = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [recent,       setRecent]       = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [totalWorkers, setTotalWorkers] = useState(null);
+  const [activeHirers, setActiveHirers] = useState(null);
 
   useEffect(() => {
+    // Live counts
+    supabase.from('labourers').select('*', { count: 'exact', head: true })
+      .then(({ count }) => setTotalWorkers(count ?? 0));
+
+    supabase.from('hirers').select('*', { count: 'exact', head: true }).eq('status', 'active')
+      .then(({ count }) => setActiveHirers(count ?? 0));
+
+    // Recent registrations
     supabase
       .from('labourers')
       .select('id, full_name, skill_1, city, status, created_at')
@@ -58,6 +68,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
         {STATS.map((s) => {
           const Icon = s.icon;
+          const liveValue =
+            s.label === 'Total Workers' ? totalWorkers :
+            s.label === 'Active Hirers' ? activeHirers :
+            null;
+          const isLive = liveValue !== null;
           return (
             <div key={s.label} className="stat-card glass">
               <div className="flex items-center justify-between">
@@ -66,7 +81,12 @@ export default function Dashboard() {
                   <Icon size={17} color={s.color} strokeWidth={2.2} />
                 </div>
               </div>
-              <span className="value">{s.value}</span>
+              <span className="value">
+                {isLive
+                  ? liveValue === null ? <Loader2 size={18} className="animate-spin inline" /> : liveValue.toLocaleString('en-IN')
+                  : s.value
+                }
+              </span>
               <span className="delta">{s.delta}</span>
             </div>
           );
