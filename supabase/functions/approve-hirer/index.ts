@@ -48,11 +48,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 2. Create auth user with email (send magic link / invite)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: hirer.email,
-      email_confirm: true,
-    });
+    // 2. Invite user — creates auth user + sends invite email with password-setup link
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      hirer.email,
+      { data: { first_name: hirer.first_name, last_name: hirer.last_name } },
+    );
 
     if (authError) {
       return new Response(JSON.stringify({ error: authError.message }), {
@@ -76,12 +76,6 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    // 4. Send password setup email so hirer can log in
-    await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email: hirer.email,
-    });
 
     return new Response(
       JSON.stringify({ success: true, auth_user_id: authData.user.id }),
