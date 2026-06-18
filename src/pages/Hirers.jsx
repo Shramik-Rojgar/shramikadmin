@@ -36,10 +36,10 @@ export default function Hirers() {
 
   const approve = async (hirer) => {
     setActing(hirer.id);
-    await supabase
-      .from('hirers')
-      .update({ status: 'active', is_verified: true, rejection_reason: null })
-      .eq('id', hirer.id);
+    const { error } = await supabase.functions.invoke('approve-hirer', {
+      body: { hirer_id: hirer.id },
+    });
+    if (error) console.error('[approve-hirer]', error.message);
     setActing(null);
     fetchHirers();
   };
