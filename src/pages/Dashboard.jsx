@@ -4,8 +4,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, L
 import { supabase } from '../lib/supabase';
 
 const STATS = [
-  { label: 'Total Workers',   value: '12,480', delta: '+340 this week', icon: Users,        color: '#E5397B' },
-  { label: 'Active Hirers',   value: '1,842',  delta: '+58 this week',  icon: Briefcase,    color: '#7A3BFF' },
+  { label: 'Total Workers',   value: null,     delta: null,             icon: Users,        color: '#E5397B' },
+  { label: 'Active Hirers',   value: null,     delta: null,             icon: Briefcase,    color: '#7A3BFF' },
   { label: 'Jobs Posted',     value: '4,271',  delta: '+192 today',     icon: TrendingUp,   color: '#FF8A1E' },
   { label: 'Wages Processed', value: '₹42.6L', delta: '+₹3.1L today',  icon: IndianRupee,  color: '#16B364' },
 ];
