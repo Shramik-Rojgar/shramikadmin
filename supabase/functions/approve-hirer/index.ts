@@ -30,6 +30,8 @@ Deno.serve(async (req) => {
       .eq('id', hirer_id)
       .single();
 
+    console.log('Fetched hirer:', JSON.stringify(hirer), 'fetchError:', fetchError?.message);
+
     if (fetchError || !hirer) {
       return new Response(JSON.stringify({ error: 'Hirer not found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -48,16 +50,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 2. Invite user — creates auth user + sends invite email with password-setup link
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      hirer.email,
-      { data: { first_name: hirer.first_name, last_name: hirer.last_name } },
-    );
+    // 2. Check if auth user already exists for this email
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existing = existingUsers?.users?.find(u => u.email === hirer.email);
 
-    if (authError) {
-      return new Response(JSON.stringify({ error: authError.message }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    let authUserId: string;
+
+    if (existing) {
+      console.log('Auth user already exists:', existing.id);
+      authUserId = existing.id;
+      // Send a password reset so they can still log in
+      await supabaseAdmin.auth.admin.generateLink({ type: 'recovery', email: hirer.email });
+    } else {
+      // Invite user — creates auth user + sends invite email with password-setup link
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        hirer.email,
+        { data: { first_name: hirer.first_name, last_name: hirer.last_name } },
+      );
+
+      console.log('inviteUserByEmail error:', authError?.message);
+
+      if (authError) {
+        return new Response(JSON.stringify({ error: authError.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      authUserId = authData.user.id;
     }
 
     // 3. Save auth_user_id + mark active + verified
@@ -66,10 +85,12 @@ Deno.serve(async (req) => {
       .update({
         status:       'active',
         is_verified:  true,
-        auth_user_id: authData.user.id,
+        auth_user_id: authUserId,
         rejection_reason: null,
       })
       .eq('id', hirer_id);
+
+    console.log('Update error:', updateError?.message);
 
     if (updateError) {
       return new Response(JSON.stringify({ error: updateError.message }), {
@@ -78,11 +99,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, auth_user_id: authData.user.id }),
+      JSON.stringify({ success: true, auth_user_id: authUserId }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
 
   } catch (err) {
+    console.error('Unexpected error:', err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
