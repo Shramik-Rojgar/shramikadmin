@@ -38,7 +38,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Live counts
-    supabase.from('labourers').select('*', { count: 'exact', head: true })
+    supabase.from('labourers').select('*', { count: 'exact', head: true }).eq('status', 'approved')
       .then(({ count }) => setTotalWorkers(count ?? 0));
 
     supabase.from('hirers').select('*', { count: 'exact', head: true }).eq('status', 'active')
