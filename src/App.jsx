@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Workers from './pages/Workers';
 import WorkersManage from './pages/WorkersManage';
+import Hirers from './pages/Hirers';
 import { Loader2 } from 'lucide-react';
 
 function Placeholder({ title }) {
@@ -60,7 +61,7 @@ export default function App() {
       case 'workers-manage':  return <WorkersManage />;
       case 'workers-approve': return <Workers />;
       case 'workers':         return <WorkersManage />;  // default workers → manage
-      case 'hirers':          return <Placeholder title="Hirers" />;
+      case 'hirers':          return <Hirers />;
       case 'jobs':            return <Placeholder title="Job Postings" />;
       case 'analytics':       return <Placeholder title="Analytics" />;
       case 'settings':        return <Placeholder title="Settings" />;
