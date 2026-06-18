@@ -8,7 +8,7 @@ const STATUS_BADGE = {
   rejected: 'badge badge-red',
 };
 
-const FILTERS = ['all', 'pending', 'approved', 'rejected'];
+const FILTERS = ['pending', 'approved', 'rejected'];
 
 export default function Workers() {
   const [workers,   setWorkers]   = useState([]);

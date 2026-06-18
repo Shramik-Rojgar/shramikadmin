@@ -122,6 +122,18 @@ body {
   box-shadow: 0 6px 18px rgba(229,57,123,0.22);
 }
 
+/* Sidebar dropdown sub-items */
+.nav-sub-item {
+  padding-left: 42px !important;
+  font-size: 13px;
+  margin: 1px 12px;
+}
+.nav-sub-item.active {
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(229,57,123,0.18);
+}
+
 /* ── Stat card ────────────────────────────────────────── */
 .stat-card {
   border-radius: 20px;

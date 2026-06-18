@@ -5,6 +5,7 @@ import BackgroundOrbs from './components/BackgroundOrbs';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Workers from './pages/Workers';
+import WorkersManage from './pages/WorkersManage';
 import { Loader2 } from 'lucide-react';
 
 function Placeholder({ title }) {
@@ -55,13 +56,15 @@ export default function App() {
   // ── Logged in → show admin shell ───────────────────────
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <Dashboard />;
-      case 'workers':   return <Workers />;
-      case 'hirers':    return <Placeholder title="Hirers" />;
-      case 'jobs':      return <Placeholder title="Job Postings" />;
-      case 'analytics': return <Placeholder title="Analytics" />;
-      case 'settings':  return <Placeholder title="Settings" />;
-      default:          return <Dashboard />;
+      case 'dashboard':       return <Dashboard />;
+      case 'workers-manage':  return <WorkersManage />;
+      case 'workers-approve': return <Workers />;
+      case 'workers':         return <WorkersManage />;  // default workers → manage
+      case 'hirers':          return <Placeholder title="Hirers" />;
+      case 'jobs':            return <Placeholder title="Job Postings" />;
+      case 'analytics':       return <Placeholder title="Analytics" />;
+      case 'settings':        return <Placeholder title="Settings" />;
+      default:                return <Dashboard />;
     }
   };
 

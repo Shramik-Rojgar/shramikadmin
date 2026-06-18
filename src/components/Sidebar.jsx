@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '../lib/utils';
 import {
   LayoutDashboard,
@@ -9,18 +9,45 @@ import {
   Settings,
   LogOut,
   ShieldCheck,
+  ChevronDown,
+  ClipboardCheck,
+  Users,
 } from 'lucide-react';
 
 const NAV = [
-  { id: 'dashboard',  label: 'Dashboard',      icon: LayoutDashboard },
-  { id: 'workers',    label: 'Workers',         icon: HardHat },
-  { id: 'hirers',     label: 'Hirers',          icon: UserCheck },
-  { id: 'jobs',       label: 'Job Postings',    icon: Briefcase },
-  { id: 'analytics',  label: 'Analytics',       icon: BarChart2 },
-  { id: 'settings',   label: 'Settings',        icon: Settings },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  {
+    id: 'workers',
+    label: 'Workers',
+    icon: HardHat,
+    children: [
+      { id: 'workers-manage',  label: 'Manage',  icon: Users },
+      { id: 'workers-approve', label: 'Approve', icon: ClipboardCheck },
+    ],
+  },
+  { id: 'hirers',    label: 'Hirers',       icon: UserCheck },
+  { id: 'jobs',      label: 'Job Postings', icon: Briefcase },
+  { id: 'analytics', label: 'Analytics',    icon: BarChart2 },
+  { id: 'settings',  label: 'Settings',     icon: Settings },
 ];
 
 export default function Sidebar({ active, onNav, onLogout }) {
+  // Track which dropdowns are open
+  const [openMenus, setOpenMenus] = useState(() => {
+    // Auto-open the workers dropdown if the active page is a child
+    if (active?.startsWith('workers')) return { workers: true };
+    return {};
+  });
+
+  const toggleMenu = (id) => {
+    setOpenMenus(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const isChildActive = (item) => {
+    if (!item.children) return false;
+    return item.children.some(c => c.id === active);
+  };
+
   return (
     <aside className="sidebar">
       {/* Brand */}
@@ -50,16 +77,73 @@ export default function Sidebar({ active, onNav, onLogout }) {
 
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 mt-4 flex-grow">
-        {NAV.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => onNav(id)}
-            className={cn('nav-item', active === id && 'active')}
-          >
-            <Icon size={17} strokeWidth={2} />
-            <span>{label}</span>
-          </button>
-        ))}
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const hasChildren = !!item.children;
+          const isOpen = openMenus[item.id] || isChildActive(item);
+
+          if (hasChildren) {
+            return (
+              <div key={item.id}>
+                {/* Parent button */}
+                <button
+                  onClick={() => toggleMenu(item.id)}
+                  className={cn(
+                    'nav-item w-full justify-between',
+                    isChildActive(item) && 'text-[var(--ink)]'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon size={17} strokeWidth={2} />
+                    <span>{item.label}</span>
+                  </div>
+                  <ChevronDown
+                    size={14}
+                    strokeWidth={2.5}
+                    className={cn(
+                      'transition-transform duration-200',
+                      isOpen && 'rotate-180'
+                    )}
+                  />
+                </button>
+
+                {/* Children */}
+                <div
+                  className="overflow-hidden transition-all duration-200"
+                  style={{
+                    maxHeight: isOpen ? `${item.children.length * 44}px` : '0px',
+                    opacity: isOpen ? 1 : 0,
+                  }}
+                >
+                  {item.children.map((child) => {
+                    const ChildIcon = child.icon;
+                    return (
+                      <button
+                        key={child.id}
+                        onClick={() => onNav(child.id)}
+                        className={cn('nav-item nav-sub-item', active === child.id && 'active')}
+                      >
+                        <ChildIcon size={15} strokeWidth={2} />
+                        <span>{child.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => onNav(item.id)}
+              className={cn('nav-item', active === item.id && 'active')}
+            >
+              <Icon size={17} strokeWidth={2} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {/* Logout */}
