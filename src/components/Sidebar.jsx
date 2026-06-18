@@ -25,7 +25,15 @@ const NAV = [
       { id: 'workers-approve', label: 'Approve', icon: ClipboardCheck },
     ],
   },
-  { id: 'hirers',    label: 'Hirers',       icon: UserCheck },
+  {
+    id: 'hirers',
+    label: 'Hirers',
+    icon: UserCheck,
+    children: [
+      { id: 'hirers-manage',  label: 'Manage',  icon: Users },
+      { id: 'hirers-approve', label: 'Approve', icon: ClipboardCheck },
+    ],
+  },
   { id: 'jobs',      label: 'Job Postings', icon: Briefcase },
   { id: 'analytics', label: 'Analytics',    icon: BarChart2 },
   { id: 'settings',  label: 'Settings',     icon: Settings },
@@ -34,9 +42,10 @@ const NAV = [
 export default function Sidebar({ active, onNav, onLogout }) {
   // Track which dropdowns are open
   const [openMenus, setOpenMenus] = useState(() => {
-    // Auto-open the workers dropdown if the active page is a child
-    if (active?.startsWith('workers')) return { workers: true };
-    return {};
+    const open = {};
+    if (active?.startsWith('workers')) open.workers = true;
+    if (active?.startsWith('hirers'))  open.hirers  = true;
+    return open;
   });
 
   const toggleMenu = (id) => {
