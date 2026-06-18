@@ -20,9 +20,10 @@ function Placeholder({ title }) {
 }
 
 export default function App() {
-  const [session, setSession] = useState(undefined); // undefined = loading
-  const [page, setPage]       = useState('dashboard');
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [session,   setSession]   = useState(undefined);
+  const [page,      setPage]      = useState('dashboard');
+  const [collapsed, setCollapsed] = useState(false);
+  const [isMobile,  setIsMobile]  = useState(() => window.innerWidth < 768);
 
   // ── Detect mobile on resize ────────────────────────────
   useEffect(() => {
@@ -119,8 +120,14 @@ export default function App() {
   return (
     <div className="min-h-screen font-sans text-[var(--ink)]">
       <BackgroundOrbs />
-      <Sidebar active={page} onNav={setPage} onLogout={handleLogout} />
-      <main className="main-content">
+      <Sidebar
+        active={page}
+        onNav={setPage}
+        onLogout={handleLogout}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed(c => !c)}
+      />
+      <main className="main-content" style={{ marginLeft: collapsed ? 64 : 240 }}>
         {renderPage()}
       </main>
     </div>

@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ClipboardCheck,
   Users,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 const NAV = [
@@ -39,8 +41,7 @@ const NAV = [
   { id: 'settings',  label: 'Settings',     icon: Settings },
 ];
 
-export default function Sidebar({ active, onNav, onLogout }) {
-  // Track which dropdowns are open
+export default function Sidebar({ active, onNav, onLogout, collapsed, onToggleCollapse }) {
   const [openMenus, setOpenMenus] = useState(() => {
     const open = {};
     if (active?.startsWith('workers')) open.workers = true;
@@ -49,95 +50,115 @@ export default function Sidebar({ active, onNav, onLogout }) {
   });
 
   const toggleMenu = (id) => {
-    setOpenMenus(prev => ({ ...prev, [id]: !prev[id] }));
+    if (collapsed) {
+      // Expand sidebar first, then open the menu
+      onToggleCollapse();
+      setOpenMenus({ [id]: true });
+    } else {
+      setOpenMenus(prev => ({ ...prev, [id]: !prev[id] }));
+    }
   };
 
-  const isChildActive = (item) => {
-    if (!item.children) return false;
-    return item.children.some(c => c.id === active);
-  };
+  const isChildActive = (item) => item.children?.some(c => c.id === active) ?? false;
 
   return (
-    <aside className="sidebar">
-      {/* Brand */}
-      <div className="flex items-center gap-2.5 px-6 py-5 border-b border-[var(--divider)]">
+    <aside
+      className="sidebar"
+      style={{ width: collapsed ? 64 : 240 }}
+    >
+      {/* Brand + collapse toggle */}
+      <div className="flex items-center border-b border-[var(--divider)]" style={{ minHeight: 68, padding: collapsed ? '0 12px' : '0 16px', gap: 10 }}>
+        {/* Logo icon — always visible */}
         <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center"
+          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ background: 'var(--grad)' }}
         >
           <ShieldCheck size={16} color="#fff" strokeWidth={2.5} />
         </div>
-        <div>
-          <span
-            className="font-display font-black text-base tracking-tight"
-            style={{
-              background: 'var(--grad)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            SHRAMIK
-          </span>
-          <p className="text-[10px] font-bold text-[var(--mut)] leading-none mt-0.5">
-            Admin Console
-          </p>
-        </div>
+
+        {/* Brand text — hidden when collapsed */}
+        {!collapsed && (
+          <div className="flex-1 min-w-0">
+            <span
+              className="font-display font-black text-base tracking-tight block"
+              style={{ background: 'var(--grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+            >
+              SHRAMIK
+            </span>
+            <p className="text-[10px] font-bold text-[var(--mut)] leading-none mt-0.5">Admin Console</p>
+          </div>
+        )}
+
+        {/* Toggle button */}
+        <button
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mut)] hover:text-[var(--ink)] hover:bg-black/5 transition-colors cursor-pointer"
+          style={{ marginLeft: collapsed ? 0 : 'auto' }}
+        >
+          {collapsed
+            ? <PanelLeftOpen size={15} strokeWidth={2} />
+            : <PanelLeftClose size={15} strokeWidth={2} />
+          }
+        </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-col gap-0.5 mt-4 flex-grow">
+      <nav className="flex flex-col gap-0.5 mt-3 flex-grow overflow-hidden">
         {NAV.map((item) => {
           const Icon = item.icon;
           const hasChildren = !!item.children;
-          const isOpen = openMenus[item.id] || isChildActive(item);
+          const childActive = isChildActive(item);
+          const isOpen = !collapsed && (openMenus[item.id] || childActive);
 
           if (hasChildren) {
             return (
               <div key={item.id}>
-                {/* Parent button */}
                 <button
                   onClick={() => toggleMenu(item.id)}
+                  title={collapsed ? item.label : undefined}
                   className={cn(
-                    'nav-item w-full justify-between',
-                    isChildActive(item) && 'text-[var(--ink)]'
+                    'nav-item w-full',
+                    collapsed ? 'justify-center px-0 mx-auto' : 'justify-between',
+                    childActive && !collapsed && 'text-[var(--ink)] bg-black/[0.04]',
+                    childActive && collapsed && 'text-[var(--accent)]',
                   )}
+                  style={collapsed ? { width: 40, padding: '10px 0' } : {}}
                 >
                   <div className="flex items-center gap-3">
                     <Icon size={17} strokeWidth={2} />
-                    <span>{item.label}</span>
+                    {!collapsed && <span>{item.label}</span>}
                   </div>
-                  <ChevronDown
-                    size={14}
-                    strokeWidth={2.5}
-                    className={cn(
-                      'transition-transform duration-200',
-                      isOpen && 'rotate-180'
-                    )}
-                  />
+                  {!collapsed && (
+                    <ChevronDown
+                      size={14}
+                      strokeWidth={2.5}
+                      className={cn('transition-transform duration-200', isOpen && 'rotate-180')}
+                    />
+                  )}
                 </button>
 
-                {/* Children */}
-                <div
-                  className="overflow-hidden transition-all duration-200"
-                  style={{
-                    maxHeight: isOpen ? `${item.children.length * 44}px` : '0px',
-                    opacity: isOpen ? 1 : 0,
-                  }}
-                >
-                  {item.children.map((child) => {
-                    const ChildIcon = child.icon;
-                    return (
-                      <button
-                        key={child.id}
-                        onClick={() => onNav(child.id)}
-                        className={cn('nav-item nav-sub-item', active === child.id && 'active')}
-                      >
-                        <ChildIcon size={15} strokeWidth={2} />
-                        <span>{child.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Children — only shown when expanded */}
+                {!collapsed && (
+                  <div
+                    className="overflow-hidden transition-all duration-200"
+                    style={{ maxHeight: isOpen ? `${item.children.length * 44}px` : 0, opacity: isOpen ? 1 : 0 }}
+                  >
+                    {item.children.map((child) => {
+                      const ChildIcon = child.icon;
+                      return (
+                        <button
+                          key={child.id}
+                          onClick={() => onNav(child.id)}
+                          className={cn('nav-item nav-sub-item', active === child.id && 'active')}
+                        >
+                          <ChildIcon size={15} strokeWidth={2} />
+                          <span>{child.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           }
@@ -146,20 +167,36 @@ export default function Sidebar({ active, onNav, onLogout }) {
             <button
               key={item.id}
               onClick={() => onNav(item.id)}
-              className={cn('nav-item', active === item.id && 'active')}
+              title={collapsed ? item.label : undefined}
+              className={cn(
+                'nav-item',
+                collapsed ? 'justify-center mx-auto px-0' : '',
+                active === item.id && 'active',
+              )}
+              style={collapsed ? { width: 40, padding: '10px 0' } : {}}
             >
               <Icon size={17} strokeWidth={2} />
-              <span>{item.label}</span>
+              {!collapsed && <span>{item.label}</span>}
             </button>
           );
         })}
       </nav>
 
       {/* Logout */}
-      <button onClick={onLogout} className="nav-item text-[var(--mut)] mt-2">
-        <LogOut size={17} strokeWidth={2} />
-        <span>Logout</span>
-      </button>
+      <div className="border-t border-[var(--divider)] pt-2 mt-2">
+        <button
+          onClick={onLogout}
+          title={collapsed ? 'Logout' : undefined}
+          className={cn(
+            'nav-item text-[var(--mut)] hover:text-red-500',
+            collapsed ? 'justify-center mx-auto px-0' : '',
+          )}
+          style={collapsed ? { width: 40, padding: '10px 0' } : {}}
+        >
+          <LogOut size={17} strokeWidth={2} />
+          {!collapsed && <span>Logout</span>}
+        </button>
+      </div>
     </aside>
   );
 }
