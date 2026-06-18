@@ -30,8 +30,6 @@ Deno.serve(async (req) => {
       .eq('id', hirer_id)
       .single();
 
-    console.log('Fetched hirer:', JSON.stringify(hirer), 'fetchError:', fetchError?.message);
-
     if (fetchError || !hirer) {
       return new Response(JSON.stringify({ error: 'Hirer not found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -50,32 +48,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 2. Check if auth user already exists for this email
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existing = existingUsers?.users?.find(u => u.email === hirer.email);
+    // 2. Invite user — sends invite email, hirer clicks link → redirected to set-password page
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      hirer.email,
+      {
+        redirectTo: 'https://www.shramikrojgar.in/set-password',
+        data: { first_name: hirer.first_name, last_name: hirer.last_name },
+      },
+    );
+
+    console.log('inviteUserByEmail status:', authError ? `ERROR: ${authError.message} | ${JSON.stringify(authError)}` : 'OK', 'user:', authData?.user?.id);
 
     let authUserId: string;
 
-    if (existing) {
-      console.log('Auth user already exists:', existing.id);
-      authUserId = existing.id;
-      // Send a password reset so they can still log in
-      await supabaseAdmin.auth.admin.generateLink({ type: 'recovery', email: hirer.email });
-    } else {
-      // Invite user — creates auth user + sends invite email with password-setup link
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        hirer.email,
-        { data: { first_name: hirer.first_name, last_name: hirer.last_name } },
-      );
-
-      console.log('inviteUserByEmail error:', authError?.message);
-
-      if (authError) {
-        return new Response(JSON.stringify({ error: authError.message }), {
+    if (authError) {
+      // User might already exist in auth from a previous attempt
+      const errStr = authError.message?.toLowerCase() ?? '';
+      if (errStr.includes('already') || errStr.includes('exists')) {
+        const { data: list } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+        const existing = list?.users?.find(u => u.email === hirer.email);
+        if (!existing) {
+          return new Response(JSON.stringify({ error: authError.message || 'Invite failed' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        authUserId = existing.id;
+      } else {
+        return new Response(JSON.stringify({ error: authError.message || 'Invite failed' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
+    } else {
       authUserId = authData.user.id;
     }
 
@@ -83,14 +86,12 @@ Deno.serve(async (req) => {
     const { error: updateError } = await supabaseAdmin
       .from('hirers')
       .update({
-        status:       'active',
-        is_verified:  true,
-        auth_user_id: authUserId,
+        status:           'active',
+        is_verified:      true,
+        auth_user_id:     authUserId,
         rejection_reason: null,
       })
       .eq('id', hirer_id);
-
-    console.log('Update error:', updateError?.message);
 
     if (updateError) {
       return new Response(JSON.stringify({ error: updateError.message }), {
