@@ -14,6 +14,9 @@ import {
   Users,
   PanelLeftClose,
   PanelLeftOpen,
+  Wallet,
+  BadgeCheck,
+  Banknote,
 } from 'lucide-react';
 
 const NAV = [
@@ -36,16 +39,39 @@ const NAV = [
       { id: 'hirers-approve', label: 'Approve', icon: ClipboardCheck },
     ],
   },
+  {
+    id: 'payments',
+    label: 'Payments',
+    icon: Wallet,
+    children: [
+      { id: 'payments-verification', label: 'Verification', icon: BadgeCheck },
+      { id: 'payments-settlements',  label: 'Settlements',   icon: Banknote },
+    ],
+  },
   { id: 'jobs',      label: 'Job Postings', icon: Briefcase },
   { id: 'analytics', label: 'Analytics',    icon: BarChart2 },
+  { id: 'users',     label: 'Admin Users',  icon: Users },
   { id: 'settings',  label: 'Settings',     icon: Settings },
 ];
 
-export default function Sidebar({ active, onNav, onLogout, collapsed, onToggleCollapse }) {
+import { useMemo } from 'react';
+
+export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, onToggleCollapse }) {
+  const filteredNav = useMemo(() => {
+    if (userRole === 'verification_officer') {
+      return NAV.filter(item => ['workers', 'hirers'].includes(item.id));
+    }
+    if (userRole === 'finance_admin') {
+      return NAV.filter(item => ['payments', 'jobs'].includes(item.id));
+    }
+    return NAV;
+  }, [userRole]);
+
   const [openMenus, setOpenMenus] = useState(() => {
     const open = {};
-    if (active?.startsWith('workers')) open.workers = true;
-    if (active?.startsWith('hirers'))  open.hirers  = true;
+    if (active?.startsWith('workers'))  open.workers  = true;
+    if (active?.startsWith('hirers'))   open.hirers   = true;
+    if (active?.startsWith('payments')) open.payments = true;
     return open;
   });
 
@@ -105,7 +131,7 @@ export default function Sidebar({ active, onNav, onLogout, collapsed, onToggleCo
 
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 mt-3 flex-grow overflow-hidden">
-        {NAV.map((item) => {
+        {filteredNav.map((item) => {
           const Icon = item.icon;
           const hasChildren = !!item.children;
           const childActive = isChildActive(item);

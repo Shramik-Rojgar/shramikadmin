@@ -10,25 +10,84 @@ export default function Login({ onAuth }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
+  // Rate Limiting & Brute Force protection
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutTime, setLockoutTime]       = useState(0);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!email.trim())    return setError('Email is required.');
-    if (!password)        return setError('Password is required.');
-
-    setLoading(true);
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setLoading(false);
-
-    if (authError) {
-      setError(authError.message || 'Login failed. Please try again.');
+    // Check lockout status
+    const now = Date.now();
+    if (lockoutTime && now < lockoutTime) {
+      const remaining = Math.ceil((lockoutTime - now) / 1000);
+      setError(`Too many failed attempts. Login locked. Please wait ${remaining} seconds.`);
       return;
     }
 
+    // Input sanitization (XSS prevention)
+    const cleanEmail = email.trim().replace(/<[^>]*>/g, '');
+    const cleanPassword = password.replace(/<[^>]*>/g, '');
+
+    if (!cleanEmail)    return setError('Email is required.');
+    if (!cleanPassword) return setError('Password is required.');
+
+    setLoading(true);
+    // Note: Parameterized query executed automatically via Supabase client, preventing SQL injection.
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: cleanPassword,
+    });
+
+    if (authError) {
+      setLoading(false);
+      const nextAttempts = failedAttempts + 1;
+      setFailedAttempts(nextAttempts);
+
+      if (nextAttempts >= 5) {
+        setLockoutTime(Date.now() + 60 * 1000); // Lock for 60 seconds
+        setError('Too many failed attempts. Login locked for 60 seconds.');
+      } else {
+        setError(authError.message || 'Login failed. Please try again.');
+      }
+      return;
+    }
+
+    // Reset rate limits on successful auth
+    setFailedAttempts(0);
+    setLockoutTime(0);
+
+    // Query admin_users to see if user is active
+    const { data: adminUser, error: dbError } = await supabase
+      .from('admin_users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (dbError || !adminUser) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError('Access denied: You are not authorized to access the admin console.');
+      return;
+    }
+
+    if (!adminUser.is_active) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError('Access denied: Your admin staff account is deactivated.');
+      return;
+    }
+
+    // Update last_login
+    await supabase
+      .from('admin_users')
+      .update({
+        last_login: new Date().toISOString(),
+      })
+      .eq('id', data.user.id);
+
+    setLoading(false);
     onAuth(data.session);
   };
 

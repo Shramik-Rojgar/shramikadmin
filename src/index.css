@@ -18,6 +18,25 @@
 
   --font-display: var(--disp);
   --font-sans: var(--body);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
 }
 
 @source "./**/*.jsx";
@@ -32,12 +51,24 @@
   --foreground: var(--ink);
   --card: rgba(255, 255, 255, 0.58);
   --card-border: rgba(255, 255, 255, 0.78);
+  --card-foreground: var(--ink);
   --input-bg: rgba(255, 255, 255, 0.85);
   --input-border: rgba(20, 16, 28, 0.10);
   --chip-bg: rgba(255, 255, 255, 0.62);
   --chip-border: rgba(255, 255, 255, 0.85);
   --divider: rgba(20, 16, 28, 0.08);
   --radius: 1.25rem;
+
+  --primary: var(--accent);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--mut);
+  --secondary-foreground: #FFFFFF;
+  --muted: var(--mut);
+  --muted-foreground: var(--faint);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: var(--card-border);
+  --input: var(--input-border);
+  --ring: var(--rani);
 }
 
 body {

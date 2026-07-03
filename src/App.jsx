@@ -8,6 +8,11 @@ import Workers from './pages/Workers';
 import WorkersManage from './pages/WorkersManage';
 import Hirers from './pages/Hirers';
 import HirersManage from './pages/HirersManage';
+import PaymentsVerification from './pages/PaymentsVerification';
+import PaymentsSettlements from './pages/PaymentsSettlements';
+import Jobs from './pages/Jobs';
+import Analytics from './pages/Analytics';
+import UsersPage from './pages/Users';
 import { Loader2, Monitor, ShieldCheck } from 'lucide-react';
 
 function Placeholder({ title }) {
@@ -20,10 +25,95 @@ function Placeholder({ title }) {
 }
 
 export default function App() {
+  const getPageFromPath = () => {
+    const path = window.location.pathname.replace(/^\//, '') || 'dashboard';
+    return path;
+  };
+
   const [session,   setSession]   = useState(undefined);
-  const [page,      setPage]      = useState('dashboard');
+  const [userRole,  setUserRole]  = useState(null);
+  const [page,      setPage]      = useState(getPageFromPath);
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile,  setIsMobile]  = useState(() => window.innerWidth < 768);
+
+  useEffect(() => {
+    if (!session) {
+      setUserRole(null);
+      return;
+    }
+    supabase
+      .from('admin_users')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => {
+        setUserRole(data?.role || 'admin');
+      });
+  }, [session]);
+
+  // ── Sync URL Path with State page ───────────────────────
+  useEffect(() => {
+    const currentPath = window.location.pathname.replace(/^\//, '') || 'dashboard';
+    if (currentPath !== page) {
+      window.history.pushState(null, '', `/${page}`);
+    }
+  }, [page]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPage(getPageFromPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // ── Access Guards for Roles ─────────────────
+  useEffect(() => {
+    if (userRole === 'verification_officer') {
+      const allowed = [
+        'workers-manage', 'workers-approve', 'workers',
+        'hirers-manage', 'hirers-approve', 'hirers'
+      ];
+      if (!allowed.includes(page)) {
+        setPage('workers-manage');
+      }
+    } else if (userRole === 'finance_admin') {
+      const allowed = [
+        'payments', 'payments-verification', 'payments-settlements',
+        'jobs'
+      ];
+      if (!allowed.includes(page)) {
+        setPage('payments-verification');
+      }
+    }
+  }, [userRole, page]);
+
+  // ── Session Idle Timeout (Inactivity Auto-Logout) ───────────
+  useEffect(() => {
+    if (!session) return;
+
+    let timeoutId;
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes lockout
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handleLogout();
+        alert('Security Notice: You have been logged out due to inactivity.');
+      }, INACTIVITY_LIMIT);
+    };
+
+    // User interaction event triggers
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    events.forEach(name => window.addEventListener(name, resetTimer));
+
+    resetTimer(); // Start timer
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(name => window.removeEventListener(name, resetTimer));
+    };
+  }, [session]);
 
   // ── Detect mobile on resize ────────────────────────────
   useEffect(() => {
@@ -110,10 +200,14 @@ export default function App() {
       case 'hirers':          return <HirersManage />;
       case 'hirers-manage':   return <HirersManage />;
       case 'hirers-approve':  return <Hirers />;
-      case 'jobs':            return <Placeholder title="Job Postings" />;
-      case 'analytics':       return <Placeholder title="Analytics" />;
+      case 'payments':             return <PaymentsVerification />;
+      case 'payments-verification': return <PaymentsVerification />;
+      case 'payments-settlements':  return <PaymentsSettlements />;
+      case 'jobs':            return <Jobs />;
+      case 'analytics':       return <Analytics />;
+      case 'users':           return <UsersPage userRole={userRole} />;
       case 'settings':        return <Placeholder title="Settings" />;
-      default:                return <Dashboard />;
+      default:                return <Dashboard onNav={setPage} />;
     }
   };
 
@@ -122,6 +216,7 @@ export default function App() {
       <BackgroundOrbs />
       <Sidebar
         active={page}
+        userRole={userRole}
         onNav={setPage}
         onLogout={handleLogout}
         collapsed={collapsed}
