@@ -168,6 +168,10 @@ export default function UsersPage({ userRole }) {
 
   // Toggle active / inactive status directly
   const handleToggleActive = async (user) => {
+    if (userRole !== 'super_admin' && user.role === 'super_admin') {
+      alert('Access denied: Only Super Admins can modify Super Admin accounts.');
+      return;
+    }
     const nextActive = !user.is_active;
     const { error } = await supabase
       .from('admin_users')
@@ -306,9 +310,14 @@ export default function UsersPage({ userRole }) {
                   </TableCell>
                   <TableCell className={td}>
                     <span
-                      onClick={() => handleToggleActive(u)}
+                      onClick={() => {
+                        if (userRole === 'super_admin' || u.role !== 'super_admin') {
+                          handleToggleActive(u);
+                        }
+                      }}
                       className={cn(
-                        'inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-full tracking-wider cursor-pointer whitespace-nowrap',
+                        'inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-full tracking-wider whitespace-nowrap',
+                        (userRole === 'super_admin' || u.role !== 'super_admin') ? 'cursor-pointer' : 'cursor-default opacity-85',
                         u.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
                       )}
                     >
@@ -321,15 +330,33 @@ export default function UsersPage({ userRole }) {
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--mut)] hover:text-[var(--ink)]" onClick={() => setViewUser(u)}>
                         <Eye size={13} />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--mut)] hover:text-[var(--ink)]" onClick={() => openEdit(u)}>
-                        <Edit3 size={13} />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--mut)] hover:text-[var(--ink)]" onClick={() => handleToggleActive(u)}>
-                        {u.is_active ? <ToggleRight size={15} className="text-[#16B364]" /> : <ToggleLeft size={15} className="text-gray-400" />}
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--mut)] hover:text-[var(--ink)]" onClick={() => handleResetPassword(u)}>
-                        <Key size={13} />
-                      </Button>
+                      
+                      {(userRole === 'super_admin' || u.role !== 'super_admin') ? (
+                        <>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--mut)] hover:text-[var(--ink)]" onClick={() => openEdit(u)}>
+                            <Edit3 size={13} />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--mut)] hover:text-[var(--ink)]" onClick={() => handleToggleActive(u)}>
+                            {u.is_active ? <ToggleRight size={15} className="text-[#16B364]" /> : <ToggleLeft size={15} className="text-gray-400" />}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--mut)] hover:text-[var(--ink)]" onClick={() => handleResetPassword(u)}>
+                            <Key size={13} />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg opacity-40 cursor-not-allowed" disabled>
+                            <Edit3 size={13} />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg opacity-40 cursor-not-allowed" disabled>
+                            {u.is_active ? <ToggleRight size={15} className="text-[#16B364]" /> : <ToggleLeft size={15} className="text-gray-400" />}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg opacity-40 cursor-not-allowed" disabled>
+                            <Key size={13} />
+                          </Button>
+                        </>
+                      )}
+
                       {userRole === 'super_admin' && u.role !== 'super_admin' && (
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-[var(--accent)] hover:text-red-700" onClick={() => setConfirmDelete(u)}>
                           <Trash2 size={13} />
