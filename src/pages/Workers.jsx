@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../lib/activityLog';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -41,6 +42,7 @@ export default function Workers() {
       body: { labourer_id: worker.id },
     });
     if (error) console.error('[approve]', error.message);
+    else logActivity('worker_approved', { entityType: 'labourer', entityId: worker.labour_id ?? worker.id, description: `Approved worker ${worker.full_name}` });
     setActing(null);
     fetchWorkers();
   };
@@ -51,6 +53,7 @@ export default function Workers() {
     if (!rejectRow) return;
     setActing(rejectRow.id);
     await supabase.from('labourers').update({ status: 'rejected', rejection_reason: reason || null }).eq('id', rejectRow.id);
+    logActivity('worker_rejected', { entityType: 'labourer', entityId: rejectRow.labour_id ?? rejectRow.id, description: `Rejected worker ${rejectRow.full_name}${reason ? ` — ${reason}` : ''}` });
     setActing(null);
     setRejectRow(null);
     fetchWorkers();

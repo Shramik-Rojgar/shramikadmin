@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../lib/activityLog';
 import {
   Users, User, Mail, Phone, ShieldCheck, Key, ShieldAlert,
   Loader2, RefreshCw, Plus, Edit3, Trash2, Eye, ToggleLeft, ToggleRight, CheckCircle2, XCircle
@@ -129,11 +130,13 @@ export default function UsersPage({ userRole }) {
       if (insertErr) {
         alert('Edge function error: ' + error.message + '\nFallback insert error: ' + insertErr.message);
       } else {
+        logActivity('admin_user_created', { entityType: 'admin_user', entityId: email, description: `Created admin user ${fullName} (${role})` });
         alert('Admin user created locally (Local Fallback Mode).');
         setAddOpen(false);
         load();
       }
     } else {
+      logActivity('admin_user_created', { entityType: 'admin_user', entityId: email, description: `Created admin user ${fullName} (${role})` });
       alert('Admin user account created and password setup email sent!');
       setAddOpen(false);
       load();
@@ -160,6 +163,7 @@ export default function UsersPage({ userRole }) {
     if (error) {
       alert('Failed to update admin user: ' + error.message);
     } else {
+      logActivity('admin_user_updated', { entityType: 'admin_user', entityId: editUser.email, description: `Updated admin user ${fullName}` });
       setEditUser(null);
       load();
     }
@@ -181,6 +185,7 @@ export default function UsersPage({ userRole }) {
     if (error) {
       alert('Error updating status: ' + error.message);
     } else {
+      logActivity(nextActive ? 'admin_user_activated' : 'admin_user_deactivated', { entityType: 'admin_user', entityId: user.email, description: `${nextActive ? 'Activated' : 'Deactivated'} admin user ${user.full_name}` });
       load();
     }
   };
@@ -191,6 +196,7 @@ export default function UsersPage({ userRole }) {
     if (error) {
       alert('Failed to send password reset: ' + error.message);
     } else {
+      logActivity('admin_password_reset_sent', { entityType: 'admin_user', entityId: user.email, description: `Sent password reset link to ${user.full_name}` });
       alert(`Password reset link sent successfully to ${user.email}`);
     }
   };
@@ -208,6 +214,7 @@ export default function UsersPage({ userRole }) {
     if (error) {
       alert('Error deleting user: ' + error.message);
     } else {
+      logActivity('admin_user_deleted', { entityType: 'admin_user', entityId: confirmDelete.email, description: `Deleted admin user ${confirmDelete.full_name}` });
       setConfirmDelete(null);
       load();
     }

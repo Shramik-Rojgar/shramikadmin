@@ -17,6 +17,7 @@ import {
   Wallet,
   BadgeCheck,
   Banknote,
+  ScrollText,
 } from 'lucide-react';
 
 const NAV = [
@@ -51,6 +52,7 @@ const NAV = [
   { id: 'jobs',      label: 'Job Postings', icon: Briefcase },
   { id: 'analytics', label: 'Analytics',    icon: BarChart2 },
   { id: 'users',     label: 'Admin Users',  icon: Users },
+  { id: 'logs',      label: 'Logs',         icon: ScrollText },
   { id: 'settings',  label: 'Settings',     icon: Settings },
 ];
 

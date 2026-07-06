@@ -13,6 +13,7 @@ import PaymentsSettlements from './pages/PaymentsSettlements';
 import Jobs from './pages/Jobs';
 import Analytics from './pages/Analytics';
 import UsersPage from './pages/Users';
+import Logs from './pages/Logs';
 import { Loader2, Monitor, ShieldCheck } from 'lucide-react';
 
 function Placeholder({ title }) {
@@ -206,6 +207,7 @@ export default function App() {
       case 'jobs':            return <Jobs />;
       case 'analytics':       return <Analytics />;
       case 'users':           return <UsersPage userRole={userRole} />;
+      case 'logs':            return <Logs />;
       case 'settings':        return <Placeholder title="Settings" />;
       default:                return <Dashboard onNav={setPage} />;
     }

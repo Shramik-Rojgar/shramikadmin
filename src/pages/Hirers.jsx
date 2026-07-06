@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../lib/activityLog';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, Building2, User } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -40,6 +41,7 @@ export default function Hirers() {
       body: { hirer_id: hirer.id },
     });
     if (error) console.error('[approve-hirer]', error.message);
+    else logActivity('hirer_approved', { entityType: 'hirer', entityId: hirer.hirer_id ?? hirer.id, description: `Approved hirer ${hirer.first_name} ${hirer.last_name}` });
     setActing(null);
     fetchHirers();
   };
@@ -53,6 +55,7 @@ export default function Hirers() {
       .from('hirers')
       .update({ status: 'blocked', rejection_reason: reason || null })
       .eq('id', blockRow.id);
+    logActivity('hirer_blocked', { entityType: 'hirer', entityId: blockRow.hirer_id ?? blockRow.id, description: `Blocked hirer ${blockRow.first_name} ${blockRow.last_name}${reason ? ` — ${reason}` : ''}` });
     setActing(null);
     setBlockRow(null);
     fetchHirers();

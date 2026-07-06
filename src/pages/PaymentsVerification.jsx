@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../lib/activityLog';
 import { Loader2, RefreshCw, CheckCircle, XCircle, Landmark } from 'lucide-react';
 import {
   Table,
@@ -86,6 +87,7 @@ export default function PaymentsVerification() {
       .from(row.table)
       .update({ is_verified: true, verification_method: 'manual_admin' })
       .eq('id', row.id);
+    logActivity('bank_account_verified', { entityType: row.owner, entityId: row.id, description: `Verified ${row.owner.toLowerCase()} bank account for ${row.account_holder_name}` });
     setActing(null);
     load();
   };
@@ -96,6 +98,7 @@ export default function PaymentsVerification() {
       .from(row.table)
       .update({ is_verified: false, verification_method: 'rejected' })
       .eq('id', row.id);
+    logActivity('bank_account_rejected', { entityType: row.owner, entityId: row.id, description: `Rejected ${row.owner.toLowerCase()} bank account for ${row.account_holder_name}` });
     setActing(null);
     load();
   };

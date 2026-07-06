@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../lib/activityLog';
 import {
   IndianRupee, Wallet, Clock, Undo2, CheckCircle2, RefreshCw, Loader2,
   Search, ExternalLink, RotateCcw, Printer,
@@ -379,6 +380,8 @@ export default function PaymentsSettlements() {
       await supabase.from('worker_payouts').update({ payment_status: 'paid', paid_at: new Date().toISOString() }).eq('id', payout.id);
       await supabase.from('job_workers').update({ payment_status: 'paid' }).eq('id', w.id);
     }));
+    const job = jobsById[jobId];
+    logActivity('workers_paid', { entityType: 'job', entityId: job?.job_id ?? jobId, description: `Marked worker payouts as paid for job ${job?.job_id ?? jobId}` });
     setActing(false);
     load();
   };
@@ -386,6 +389,8 @@ export default function PaymentsSettlements() {
   const closeSettlement = async (jobId) => {
     setActing(true);
     await supabase.from('jobs').update({ escrow_status: 'released' }).eq('id', jobId);
+    const job = jobsById[jobId];
+    logActivity('settlement_closed', { entityType: 'job', entityId: job?.job_id ?? jobId, description: `Closed settlement for job ${job?.job_id ?? jobId}` });
     setActing(false);
     load();
   };
@@ -393,6 +398,7 @@ export default function PaymentsSettlements() {
   const retryRefund = async (refund) => {
     setActing(true);
     await supabase.from('refunds').update({ status: 'pending' }).eq('id', refund.id);
+    logActivity('refund_retried', { entityType: 'refund', entityId: refund.refund_id, description: `Retried refund ${refund.refund_id}` });
     setActing(false);
     load();
   };
@@ -411,8 +417,9 @@ export default function PaymentsSettlements() {
       setActing(false);
       return;
     }
+    const refundId = `REF${Date.now()}`;
     await supabase.from('refunds').insert({
-      refund_id: `REF${Date.now()}`,
+      refund_id: refundId,
       payment_id: escrowPayment.id,
       job_id: refundDialog.job.id,
       hirer_id: refundDialog.job.hirer_id,
@@ -420,6 +427,7 @@ export default function PaymentsSettlements() {
       refund_reason: refundReason || null,
       status: 'pending',
     });
+    logActivity('refund_issued', { entityType: 'job', entityId: refundDialog.job.job_id, description: `Issued refund ${refundId} of ${fmtMoney(amount)} for job ${refundDialog.job.job_id}` });
     setActing(false);
     setRefundDialog(null);
     setRefundAmount('');
