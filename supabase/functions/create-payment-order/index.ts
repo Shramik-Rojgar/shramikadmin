@@ -67,6 +67,9 @@ Deno.serve(async (req) => {
     const amountPaise = Math.round(total * 100);
     const transactionFee = Math.round(total * 2) / 100;
     const gst = Math.round(transactionFee * 18) / 100;
+    // Gateway charge (fee + GST) stored separately; payments.amount holds
+    // only the escrow (labour cost).
+    const gatewayFee = Math.round((total - labourCost) * 100) / 100;
 
     // Reuse the pending job from a previous failed attempt instead of
     // inserting duplicates on retry.
@@ -95,7 +98,7 @@ Deno.serve(async (req) => {
         ...job,
         hirer_id: hirer.id,
         estimated_total_amount: labourCost,
-        escrow_amount: total,
+        escrow_amount: labourCost,
         escrow_status: 'pending',
         payment_status: 'pending',
         status: 'pending_payment', // hidden from workers until escrow is funded
@@ -147,7 +150,8 @@ Deno.serve(async (req) => {
       job_id: jobRow.id,
       hirer_id: hirer.id,
       payment_type: 'escrow',
-      amount: total,
+      amount: labourCost,
+      transaction_fee: gatewayFee,
       currency: 'INR',
       payment_method: 'upi',
       status: 'created',

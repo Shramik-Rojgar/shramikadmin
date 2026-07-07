@@ -33,6 +33,12 @@ alter table public.payments drop constraint if exists payments_status_check;
 alter table public.payments add constraint payments_status_check
   check (status in ('created', 'authorized', 'captured', 'failed', 'refunded', 'pending', 'paid'));
 
+-- payments.amount holds only the escrow (labour cost); the Razorpay charge
+-- (2% fee + 18% GST on the fee) is stored separately here. The actual amount
+-- collected by the gateway is amount + transaction_fee.
+alter table public.payments
+  add column if not exists transaction_fee numeric(12, 2) not null default 0;
+
 -- Columns used by create-payment-order / verify-razorpay-payment / razorpay-webhook.
 alter table public.payments add column if not exists razorpay_order_id text;
 alter table public.payments add column if not exists razorpay_payment_id text;

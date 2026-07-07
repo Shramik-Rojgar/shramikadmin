@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -18,7 +19,13 @@ const FETCH_LIMIT = 1000;
 const COLORS = ['#7A3BFF', '#FF8A1E', '#16B364', '#C91D5E', '#00C49F', '#FFBB28', '#FF8042', '#0088FE'];
 
 const fmtMoney = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+const fmtMoneyExact = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate  = (iso) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
+const fmtDateTime = (iso) => iso
+  ? new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  : '—';
+
+const TX_STATUSES = ['all', 'created', 'captured', 'paid', 'pending', 'failed', 'refunded'];
 
 export default function Analytics() {
   const [jobs, setJobs] = useState([]);
@@ -33,6 +40,7 @@ export default function Analytics() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [txStatusFilter, setTxStatusFilter] = useState('all');
 
   // Load all tables for aggregate analytics
   const load = useCallback(async () => {
@@ -99,13 +107,29 @@ export default function Analytics() {
   const filteredPayments = useMemo(() => filterByDate(payments), [payments, filterByDate]);
   const filteredAttendance = useMemo(() => filterByDate(attendance, 'attendance_date'), [attendance, filterByDate]);
 
+  // Transactions list (date-range filtered + status filter), newest first
+  const transactions = useMemo(() => {
+    return filteredPayments
+      .filter(p => txStatusFilter === 'all' || p.status === txStatusFilter)
+      .slice()
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [filteredPayments, txStatusFilter]);
+
+  const txStatusCounts = useMemo(() => {
+    const counts = { all: filteredPayments.length };
+    filteredPayments.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; });
+    return counts;
+  }, [filteredPayments]);
+
   // 1. Platform Overview calculations
   const platformStats = useMemo(() => {
     const totalRevenue = payments
       .filter(p => ['captured', 'paid'].includes(p.status))
       .reduce((s, p) => s + Number(p.amount || 0), 0);
 
-    const platformProfit = totalRevenue * 0.1;
+    const transactionFees = payments
+      .filter(p => ['captured', 'paid'].includes(p.status))
+      .reduce((s, p) => s + Number(p.transaction_fee || 0), 0);
 
     const totalJobs = jobs.length;
     const activeWorkers = workers.filter(w => w.status === 'approved').length;
@@ -114,7 +138,7 @@ export default function Analytics() {
 
     return {
       totalRevenue,
-      platformProfit,
+      transactionFees,
       totalJobs,
       activeWorkers,
       activeHirers,
@@ -334,7 +358,7 @@ export default function Analytics() {
     const uniqueDays = new Set(payoutsList.map(p => new Date(p.created_at).toDateString())).size || 1;
     const avgDailyPayout = Math.round(totalPayoutAmount / uniqueDays);
 
-    const successful = payments.filter(p => ['captured', 'paid'].includes(p.status).length);
+    const successful = payments.filter(p => ['captured', 'paid'].includes(p.status)).length;
     const paymentSuccessRate = payments.length ? Math.round((successful / payments.length) * 1000) / 10 : 100;
 
     // Calculate Attendance Trend Chart
@@ -411,7 +435,7 @@ export default function Analytics() {
     const csvContent = "data:text/csv;charset=utf-8," 
       + "Metric,Value\n"
       + `Total Revenue,${platformStats.totalRevenue}\n`
-      + `Platform Profit,${platformStats.platformProfit}\n`
+      + `Transaction Fees,${platformStats.transactionFees}\n`
       + `Total Jobs,${platformStats.totalJobs}\n`
       + `Active Workers,${platformStats.activeWorkers}\n`
       + `Active Hirers,${platformStats.activeHirers}\n`
@@ -518,6 +542,7 @@ export default function Analytics() {
             { id: 'workers', label: 'Worker Analytics' },
             { id: 'hirers', label: 'Hirer Analytics' },
             { id: 'finance', label: 'Financials' },
+            { id: 'transactions', label: 'Transactions' },
             { id: 'attendance', label: 'Attendance' },
           ].map(t => (
             <TabsTrigger
@@ -535,7 +560,7 @@ export default function Analytics() {
         <TabsContent value="overview" className="flex flex-col gap-6 mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <KPIItem label="Total Revenue" value={fmtMoney(platformStats.totalRevenue)} icon={IndianRupee} color="#7A3BFF" />
-            <KPIItem label="Platform Profit" value={fmtMoney(platformStats.platformProfit)} icon={TrendingUp} color="#16B364" />
+            <KPIItem label="Transaction Fees" value={fmtMoney(platformStats.transactionFees)} icon={TrendingUp} color="#16B364" />
             <KPIItem label="Total Jobs" value={platformStats.totalJobs} icon={Briefcase} color="#FF8A1E" />
             <KPIItem label="Active Workers" value={platformStats.activeWorkers} icon={Users} color="#7A3BFF" />
             <KPIItem label="Active Hirers" value={platformStats.activeHirers} icon={UserCheck} color="#16B364" />
@@ -784,7 +809,76 @@ export default function Analytics() {
           </div>
         </TabsContent>
 
-        {/* 6. Attendance Analytics */}
+        {/* 6. Transactions */}
+        <TabsContent value="transactions" className="flex flex-col gap-6 mt-4">
+          {/* Status filter */}
+          <div className="glass-card rounded-2xl p-4 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter size={15} className="text-[var(--mut)]" />
+              <span className="text-xs font-extrabold uppercase tracking-wider text-[var(--mut)]">Status</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {TX_STATUSES.map(status => (
+                <Button
+                  key={status}
+                  size="sm"
+                  variant={txStatusFilter === status ? 'default' : 'ghost'}
+                  onClick={() => setTxStatusFilter(status)}
+                  className={cn(
+                    'rounded-lg text-xs font-bold px-3 py-1.5 h-auto capitalize',
+                    txStatusFilter === status ? 'bg-[var(--ink)] text-white' : 'glass text-[var(--mut)]'
+                  )}
+                >
+                  {status} ({txStatusCounts[status] || 0})
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Transactions table */}
+          <div className="glass-card rounded-2xl p-5">
+            <h3 className="font-display font-black text-sm uppercase tracking-wider text-[var(--ink)] mb-4 flex items-center gap-1.5">
+              <CreditCard size={15} /> All Transactions
+              <span className="ml-auto text-[10px] font-bold text-[var(--mut)] normal-case tracking-normal">
+                {transactions.length} record{transactions.length === 1 ? '' : 's'} · respects date range filter
+              </span>
+            </h3>
+
+            {transactions.length === 0 ? (
+              <div className="text-center text-xs text-[var(--mut)] font-semibold py-8">
+                No transactions found for this date range and status.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-[var(--divider)]">
+                      {['Payment ID', 'Date', 'Type', 'Method', 'Amount', 'Txn Fee', 'Total Charged', 'Status'].map(h => (
+                        <th key={h} className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--mut)] py-2.5 pr-4 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map(p => (
+                      <tr key={p.id} className="border-b border-[var(--divider)] last:border-0 hover:bg-white/40">
+                        <td className="py-2.5 pr-4 text-xs font-bold text-[var(--ink)] whitespace-nowrap font-mono">{p.payment_id}</td>
+                        <td className="py-2.5 pr-4 text-xs font-semibold text-[var(--mut)] whitespace-nowrap">{fmtDateTime(p.paid_at || p.created_at)}</td>
+                        <td className="py-2.5 pr-4 text-xs font-semibold text-[var(--ink)] capitalize whitespace-nowrap">{(p.payment_type || '—').replace('_', ' ')}</td>
+                        <td className="py-2.5 pr-4 text-xs font-semibold text-[var(--mut)] uppercase whitespace-nowrap">{p.payment_method || '—'}</td>
+                        <td className="py-2.5 pr-4 text-xs font-bold text-[var(--ink)] whitespace-nowrap">{fmtMoneyExact(p.amount)}</td>
+                        <td className="py-2.5 pr-4 text-xs font-semibold text-[var(--mut)] whitespace-nowrap">{fmtMoneyExact(p.transaction_fee)}</td>
+                        <td className="py-2.5 pr-4 text-xs font-bold text-[var(--ink)] whitespace-nowrap">{fmtMoneyExact(Number(p.amount || 0) + Number(p.transaction_fee || 0))}</td>
+                        <td className="py-2.5 pr-4"><TxStatusBadge status={p.status} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* 7. Attendance Analytics */}
         <TabsContent value="attendance" className="flex flex-col gap-6 mt-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <CardPercent label="Present Rate" value={attendanceStats.present} color="#16B364" />
@@ -823,6 +917,27 @@ export default function Analytics() {
       </Tabs>
 
     </div>
+  );
+}
+
+function TxStatusBadge({ status }) {
+  const styles = {
+    captured: { bg: '#16B36418', color: '#16B364', Icon: CheckCircle2 },
+    paid:     { bg: '#16B36418', color: '#16B364', Icon: CheckCircle2 },
+    created:  { bg: '#FF8A1E18', color: '#FF8A1E', Icon: Clock },
+    pending:  { bg: '#FF8A1E18', color: '#FF8A1E', Icon: Clock },
+    authorized: { bg: '#7A3BFF18', color: '#7A3BFF', Icon: Clock },
+    failed:   { bg: '#C91D5E18', color: '#C91D5E', Icon: XCircle },
+    refunded: { bg: '#7A3BFF18', color: '#7A3BFF', Icon: AlertCircle },
+  };
+  const s = styles[status] ?? { bg: 'rgba(20,16,28,0.06)', color: 'var(--mut)', Icon: AlertCircle };
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide whitespace-nowrap"
+      style={{ background: s.bg, color: s.color }}
+    >
+      <s.Icon size={11} strokeWidth={2.5} /> {status || 'unknown'}
+    </span>
   );
 }
 

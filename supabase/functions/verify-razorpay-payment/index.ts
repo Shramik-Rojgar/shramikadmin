@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     // 2. The order must be one we created.
     const { data: paymentRow } = await supabaseAdmin
       .from('payments')
-      .select('id, job_id, amount, status')
+      .select('id, job_id, amount, transaction_fee, status')
       .eq('razorpay_order_id', razorpay_order_id)
       .maybeSingle();
     if (!paymentRow) {
@@ -81,7 +81,10 @@ Deno.serve(async (req) => {
     if (payment.order_id !== razorpay_order_id) {
       return json({ error: 'Payment does not belong to this order' }, 400);
     }
-    const expectedPaise = Math.round(Number(paymentRow.amount) * 100);
+    // The Razorpay charge is escrow (amount) + gateway fee.
+    const expectedPaise = Math.round(
+      (Number(paymentRow.amount) + Number(paymentRow.transaction_fee ?? 0)) * 100,
+    );
     if (Number(payment.amount) !== expectedPaise) {
       return json({ error: 'Payment amount mismatch' }, 400);
     }
