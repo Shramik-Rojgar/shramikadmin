@@ -832,6 +832,7 @@ export default function Jobs() {
                     <div className="grid grid-cols-2 gap-4 bg-white/40 rounded-xl p-4 border border-[var(--divider)]">
                       <InfoPair label="Escrow Amount" value={fmtMoney(selectedJob.escrow_amount)} />
                       <InfoPair label="Escrow Status" value={selectedJob.escrow_status || 'pending'} />
+                      <InfoPair label="Payment Status" value={selectedJob.payment_status || 'pending'} />
                       <InfoPair label="Refunded Amount" value={fmtMoney(selectedJob.refunded_amount)} />
                       <InfoPair label="Actual Total Amount" value={fmtMoney(selectedJob.actual_total_amount)} />
                     </div>

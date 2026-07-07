@@ -114,7 +114,7 @@ export default function PaymentsSettlements() {
     const [jobsRes, jwRes, payoutsRes, refundsRes, paymentsRes, attendanceRes] = await Promise.all([
       supabase
         .from('jobs')
-        .select('id, job_id, title, city, status, workers_required, escrow_amount, escrow_status, actual_total_amount, refunded_amount, wage_amount, created_at, hirer_id, hirers(first_name,last_name,company_name)')
+        .select('id, job_id, title, city, status, workers_required, escrow_amount, escrow_status, payment_status, actual_total_amount, refunded_amount, wage_amount, created_at, hirer_id, hirers(first_name,last_name,company_name)')
         .order('created_at', { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
@@ -427,6 +427,12 @@ export default function PaymentsSettlements() {
       refund_reason: refundReason || null,
       status: 'pending',
     });
+    const previousRefunds = (refundsByJobId[refundDialog.job.id] ?? []).reduce((s, r) => s + Number(r.refund_amount || 0), 0);
+    const totalRefunded = previousRefunds + amount;
+    await supabase.from('jobs').update({
+      refunded_amount: totalRefunded,
+      payment_status: totalRefunded >= Number(refundDialog.job.escrow_amount || 0) ? 'refunded' : 'partially_refunded',
+    }).eq('id', refundDialog.job.id);
     logActivity('refund_issued', { entityType: 'job', entityId: refundDialog.job.job_id, description: `Issued refund ${refundId} of ${fmtMoney(amount)} for job ${refundDialog.job.job_id}` });
     setActing(false);
     setRefundDialog(null);

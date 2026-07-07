@@ -350,6 +350,11 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Razorpay calls this webhook server-to-server; it authenticates via the
+# webhook signature (RAZORPAY_WEBHOOK_SECRET), not a Supabase JWT.
+[functions.razorpay-webhook]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
