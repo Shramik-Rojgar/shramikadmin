@@ -502,12 +502,15 @@ export default function Analytics() {
             <Button
               key={opt.id}
               size="sm"
-              variant={dateRange === opt.id ? 'default' : 'ghost'}
+              variant="ghost"
               onClick={() => setDateRange(opt.id)}
               className={cn(
                 'rounded-lg text-xs font-bold px-3 py-1.5 h-auto',
-                dateRange === opt.id ? 'bg-[var(--ink)] text-white' : 'glass text-[var(--mut)]'
+                dateRange === opt.id
+                  ? 'text-white border-transparent shadow-md hover:text-white'
+                  : 'glass text-[var(--mut)]'
               )}
+              style={dateRange === opt.id ? { background: 'var(--grad)' } : {}}
             >
               {opt.label}
             </Button>
@@ -822,12 +825,15 @@ export default function Analytics() {
                 <Button
                   key={status}
                   size="sm"
-                  variant={txStatusFilter === status ? 'default' : 'ghost'}
+                  variant="ghost"
                   onClick={() => setTxStatusFilter(status)}
                   className={cn(
                     'rounded-lg text-xs font-bold px-3 py-1.5 h-auto capitalize',
-                    txStatusFilter === status ? 'bg-[var(--ink)] text-white' : 'glass text-[var(--mut)]'
+                    txStatusFilter === status
+                      ? 'text-white border-transparent shadow-md hover:text-white'
+                      : 'glass text-[var(--mut)]'
                   )}
+                  style={txStatusFilter === status ? { background: 'var(--grad)' } : {}}
                 >
                   {status} ({txStatusCounts[status] || 0})
                 </Button>

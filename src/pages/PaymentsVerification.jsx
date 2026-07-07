@@ -152,9 +152,10 @@ export default function PaymentsVerification() {
                 className={cn(
                   'px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer',
                   owner === f.id
-                    ? 'bg-[var(--ink)] text-white'
+                    ? 'text-white shadow-md'
                     : 'text-[var(--mut)] hover:text-[var(--ink)]',
                 )}
+                style={owner === f.id ? { background: 'var(--grad)' } : {}}
               >
                 {f.label}
               </button>
