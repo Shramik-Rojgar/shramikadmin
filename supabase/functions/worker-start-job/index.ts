@@ -107,18 +107,33 @@ Deno.serve(async (req) => {
         .eq('id', jobWorker.id);
     }
 
+    const todayStr = now.slice(0, 10);
+
+    // Generate (or reuse) a 4-digit completion code stored on today's
+    // attendance row. The hirer reveals it to the worker at end of day; the
+    // worker-complete-job function verifies against it. Reused on a same-day
+    // re-check-in so it never changes once issued. Not returned to the worker.
+    const { data: existingAtt } = await supabaseAdmin
+      .from('attendance')
+      .select('complete_code')
+      .eq('job_worker_id', jobWorker.id)
+      .eq('attendance_date', todayStr)
+      .maybeSingle();
+    const completeCode = existingAtt?.complete_code
+      ?? String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+
     // Record the check-in — one row per worker per day, idempotent within a
     // day, and a fresh row each new day. `status` is intentionally left unset
     // (null/pending): the hirer marks present/absent later. Omitting it (vs
     // setting null) means a same-day re-check-in never overwrites a status the
     // hirer already recorded.
-    const todayStr = now.slice(0, 10);
     const { error: attError } = await supabaseAdmin
       .from('attendance')
       .upsert({
         job_worker_id: jobWorker.id,
         attendance_date: todayStr,
         work_status: 'started',
+        complete_code: completeCode,
       }, { onConflict: 'job_worker_id,attendance_date' });
     if (attError) {
       console.error('attendance upsert failed:', attError.message);
