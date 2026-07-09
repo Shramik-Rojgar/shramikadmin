@@ -14,6 +14,10 @@ import Jobs from './pages/Jobs';
 import Analytics from './pages/Analytics';
 import UsersPage from './pages/Users';
 import Logs from './pages/Logs';
+import WorkerDetail from './pages/WorkerDetail';
+import JobDetail from './pages/JobDetail';
+import HirerDetail from './pages/HirerDetail';
+import NotFound from './pages/NotFound';
 import { Loader2, Monitor, ShieldCheck } from 'lucide-react';
 
 function Placeholder({ title }) {
@@ -75,7 +79,7 @@ export default function App() {
         'workers-manage', 'workers-approve', 'workers',
         'hirers-manage', 'hirers-approve', 'hirers'
       ];
-      if (!allowed.includes(page)) {
+      if (!allowed.includes(page) && !page.startsWith('worker-detail/') && !page.startsWith('hirer-detail/') && !page.startsWith('job-detail/')) {
         setPage('workers-manage');
       }
     } else if (userRole === 'finance_admin') {
@@ -83,7 +87,7 @@ export default function App() {
         'payments', 'payments-verification', 'payments-settlements',
         'jobs'
       ];
-      if (!allowed.includes(page)) {
+      if (!allowed.includes(page) && !page.startsWith('job-detail/')) {
         setPage('payments-verification');
       }
     }
@@ -192,26 +196,57 @@ export default function App() {
   }
 
   // ── Logged in → show admin shell ───────────────────────
+  const DETAIL_PREFIXES = ['worker-detail/', 'job-detail/', 'hirer-detail/'];
+  const KNOWN_PAGES = [
+    'dashboard', 'workers-manage', 'workers-approve', 'workers',
+    'hirers', 'hirers-manage', 'hirers-approve',
+    'payments', 'payments-verification', 'payments-settlements',
+    'jobs', 'analytics', 'users', 'logs', 'settings',
+  ];
+  const isKnownPage = KNOWN_PAGES.includes(page) || DETAIL_PREFIXES.some(p => page.startsWith(p));
+
   const renderPage = () => {
+    if (page.startsWith('worker-detail/')) {
+      const workerId = page.slice('worker-detail/'.length);
+      return <WorkerDetail workerId={workerId} onNav={setPage} onBack={() => setPage('workers-manage')} />;
+    }
+    if (page.startsWith('job-detail/')) {
+      const jobId = page.slice('job-detail/'.length);
+      return <JobDetail jobId={jobId} onBack={() => setPage('jobs')} />;
+    }
+    if (page.startsWith('hirer-detail/')) {
+      const hirerId = page.slice('hirer-detail/'.length);
+      return <HirerDetail hirerId={hirerId} onNav={setPage} onBack={() => setPage('hirers-manage')} />;
+    }
+
     switch (page) {
       case 'dashboard':       return <Dashboard />;
-      case 'workers-manage':  return <WorkersManage />;
+      case 'workers-manage':  return <WorkersManage onNav={setPage} />;
       case 'workers-approve': return <Workers />;
-      case 'workers':         return <WorkersManage />;
-      case 'hirers':          return <HirersManage />;
-      case 'hirers-manage':   return <HirersManage />;
+      case 'workers':         return <WorkersManage onNav={setPage} />;
+      case 'hirers':          return <HirersManage onNav={setPage} />;
+      case 'hirers-manage':   return <HirersManage onNav={setPage} />;
       case 'hirers-approve':  return <Hirers />;
       case 'payments':             return <PaymentsVerification />;
       case 'payments-verification': return <PaymentsVerification />;
       case 'payments-settlements':  return <PaymentsSettlements />;
-      case 'jobs':            return <Jobs />;
+      case 'jobs':            return <Jobs onNav={setPage} />;
       case 'analytics':       return <Analytics />;
       case 'users':           return <UsersPage userRole={userRole} />;
       case 'logs':            return <Logs />;
       case 'settings':        return <Placeholder title="Settings" />;
-      default:                return <Dashboard onNav={setPage} />;
+      default:                return <NotFound onNav={setPage} />;
     }
   };
+
+  if (!isKnownPage) {
+    return (
+      <div className="min-h-screen font-sans text-[var(--ink)]">
+        <BackgroundOrbs />
+        <NotFound onNav={setPage} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen font-sans text-[var(--ink)]">

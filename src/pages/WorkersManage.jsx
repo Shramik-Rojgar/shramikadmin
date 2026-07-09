@@ -18,7 +18,7 @@ const STATUS_BADGE = {
   rejected: 'badge badge-red',
 };
 
-export default function WorkersManage() {
+export default function WorkersManage({ onNav }) {
   const [workers,   setWorkers]   = useState([]);
   const [stats,     setStats]     = useState({ total: 0, active: 0, cities: 0, avgWage: 0 });
   const [loading,   setLoading]   = useState(true);
@@ -171,13 +171,17 @@ export default function WorkersManage() {
               </thead>
               <tbody>
                 {filtered.map(w => (
-                  <tr key={w.id}>
+                  <tr
+                    key={w.id}
+                    onClick={() => onNav?.(`worker-detail/${w.id}`)}
+                    className="cursor-pointer"
+                  >
                     {/* Name + avatar */}
                     <td>
                       <div className="flex items-center gap-3">
                         <div
                           className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-slate-100 border border-[var(--divider)] cursor-pointer"
-                          onClick={() => w.photo_url && setPreview(w)}
+                          onClick={(e) => { e.stopPropagation(); w.photo_url && setPreview(w); }}
                           title="View photo"
                         >
                           {w.photo_url
@@ -208,7 +212,7 @@ export default function WorkersManage() {
                     </td>
                     <td>
                       {w.government_id_url
-                        ? <a href={w.government_id_url} target="_blank" rel="noreferrer"
+                        ? <a href={w.government_id_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View ID
                           </a>

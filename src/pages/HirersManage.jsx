@@ -18,7 +18,7 @@ const STATUS_BADGE = {
   blocked: 'badge badge-red',
 };
 
-export default function HirersManage() {
+export default function HirersManage({ onNav }) {
   const [hirers,  setHirers]  = useState([]);
   const [stats,   setStats]   = useState({ total: 0, individuals: 0, companies: 0, cities: 0 });
   const [loading, setLoading] = useState(true);
@@ -166,7 +166,11 @@ export default function HirersManage() {
               </thead>
               <tbody>
                 {filtered.map(h => (
-                  <tr key={h.id}>
+                  <tr
+                    key={h.id}
+                    onClick={() => onNav?.(`hirer-detail/${h.id}`)}
+                    className="cursor-pointer"
+                  >
                     <td>
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full flex-shrink-0 bg-slate-100 border border-[var(--divider)] flex items-center justify-center">
@@ -195,7 +199,7 @@ export default function HirersManage() {
                     </td>
                     <td>
                       {h.aadhar_url
-                        ? <a href={h.aadhar_url} target="_blank" rel="noreferrer"
+                        ? <a href={h.aadhar_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View
                           </a>

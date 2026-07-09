@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { cn } from '../lib/utils';
 import {
   LayoutDashboard,
@@ -56,7 +56,19 @@ const NAV = [
   { id: 'settings',  label: 'Settings',     icon: Settings },
 ];
 
-import { useMemo } from 'react';
+// Maps the current page (including dynamic detail routes like
+// `worker-detail/<id>`, which don't correspond to any nav item id) back to
+// the nav section it logically belongs to, so that section stays
+// highlighted/expanded even when viewing a page reached by drilling in
+// (e.g. Manage Workers → a worker's row → worker-detail/<id>).
+const sectionOf = (page) => {
+  if (!page) return null;
+  if (page.startsWith('workers') || page.startsWith('worker-detail/')) return 'workers';
+  if (page.startsWith('hirers')  || page.startsWith('hirer-detail/'))  return 'hirers';
+  if (page.startsWith('payments')) return 'payments';
+  if (page === 'jobs' || page.startsWith('job-detail/')) return 'jobs';
+  return page;
+};
 
 export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, onToggleCollapse }) {
   const filteredNav = useMemo(() => {
@@ -69,13 +81,13 @@ export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, 
     return NAV;
   }, [userRole]);
 
-  const [openMenus, setOpenMenus] = useState(() => {
-    const open = {};
-    if (active?.startsWith('workers'))  open.workers  = true;
-    if (active?.startsWith('hirers'))   open.hirers   = true;
-    if (active?.startsWith('payments')) open.payments = true;
-    return open;
-  });
+  const activeSection = sectionOf(active);
+
+  // Tracks sections the user has manually expanded/collapsed. The section
+  // containing the current page is always shown open regardless (see
+  // `isOpen` below) — this only needs to remember state for sections the
+  // user opened that aren't the active one.
+  const [openMenus, setOpenMenus] = useState({});
 
   const toggleMenu = (id) => {
     if (collapsed) {
@@ -87,7 +99,7 @@ export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, 
     }
   };
 
-  const isChildActive = (item) => item.children?.some(c => c.id === active) ?? false;
+  const isChildActive = (item) => !!item.children && activeSection === item.id;
 
   return (
     <aside
@@ -199,7 +211,7 @@ export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, 
               className={cn(
                 'nav-item',
                 collapsed ? 'justify-center mx-auto px-0' : '',
-                active === item.id && 'active',
+                (active === item.id || activeSection === item.id) && 'active',
               )}
               style={collapsed ? { width: 40, padding: '10px 0' } : {}}
             >
