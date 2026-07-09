@@ -1,9 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../lib/activityLog';
 import {
   ArrowLeft, Loader2, Phone, MapPin, Cake, Briefcase, IndianRupee,
   Eye, EyeOff, Landmark, CheckCircle2, Clock, ScrollText, AlertTriangle,
+  Pencil, X, Save,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const EDITABLE_FIELDS = ['full_name', 'mobile_no', 'date_of_birth', 'gender', 'city', 'state', 'experience_level', 'daily_wage', 'skill_1', 'skill_2', 'skill_3'];
+
+const input = 'w-full rounded-lg border border-[var(--divider)] bg-white/80 px-2.5 py-1.5 text-sm font-medium text-[var(--ink)] focus:outline-none focus:ring-1 focus:ring-[var(--rani)]';
 
 const STATUS_BADGE = {
   pending:  'badge badge-orange',
@@ -43,6 +50,10 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
   const [notFound,  setNotFound] = useState(false);
   const [jobsError, setJobsError] = useState(null);
   const [revealedAccounts, setRevealedAccounts] = useState(() => new Set());
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,6 +95,45 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+  };
+
+  const startEdit = () => {
+    setForm(Object.fromEntries(EDITABLE_FIELDS.map(f => [f, worker[f] ?? ''])));
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setSaveError(null);
+  };
+
+  const setField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const saveEdit = async () => {
+    if (!form.full_name?.trim() || !form.mobile_no?.trim()) {
+      setSaveError('Full name and mobile number are required.');
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+
+    const payload = {
+      ...form,
+      daily_wage: form.daily_wage === '' ? null : Number(form.daily_wage),
+      date_of_birth: form.date_of_birth || null,
+    };
+
+    const { error } = await supabase.from('labourers').update(payload).eq('id', workerId);
+
+    if (error) {
+      setSaveError(error.message);
+    } else {
+      logActivity('worker_updated', { entityType: 'labourer', entityId: worker.labour_id ?? workerId, description: `Updated profile details for ${form.full_name}` });
+      setWorker(prev => ({ ...prev, ...payload }));
+      setEditing(false);
+    }
+    setSaving(false);
   };
 
   const skills = worker ? [worker.skill_1, worker.skill_2, worker.skill_3].filter(Boolean) : [];
@@ -129,25 +179,87 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
 
             <div className="flex-1 flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-display font-bold text-2xl text-[var(--ink)]">{worker.full_name}</h2>
+                {editing ? (
+                  <input
+                    value={form.full_name}
+                    onChange={e => setField('full_name', e.target.value)}
+                    className={cn(input, 'font-display font-bold text-lg max-w-xs')}
+                    placeholder="Full name"
+                  />
+                ) : (
+                  <h2 className="font-display font-bold text-2xl text-[var(--ink)]">{worker.full_name}</h2>
+                )}
                 <span className={STATUS_BADGE[worker.status] ?? 'badge badge-gray'}>{worker.status}</span>
                 {worker.labour_id && <span className="text-xs font-semibold text-[var(--mut)]">{worker.labour_id}</span>}
+
+                <div className="ml-auto flex items-center gap-2">
+                  {editing ? (
+                    <>
+                      <button
+                        onClick={cancelEdit}
+                        disabled={saving}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg glass text-xs font-bold text-[var(--mut)] hover:text-[var(--ink)] cursor-pointer disabled:opacity-50"
+                      >
+                        <X size={12} /> Cancel
+                      </button>
+                      <button
+                        onClick={saveEdit}
+                        disabled={saving}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--green-soft)] text-[var(--green)] text-xs font-bold hover:bg-[#c8f0d8] cursor-pointer disabled:opacity-50"
+                      >
+                        {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                        Save
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={startEdit}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg glass text-xs font-bold text-[var(--mut)] hover:text-[var(--ink)] cursor-pointer"
+                    >
+                      <Pencil size={12} /> Edit
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <InfoItem icon={Phone} label="Mobile" value={worker.mobile_no} />
-                <InfoItem icon={Cake} label="Date of Birth" value={fmtDate(worker.date_of_birth)} />
-                <InfoItem icon={MapPin} label="Location" value={[worker.city, worker.state].filter(Boolean).join(', ') || '—'} />
-                <InfoItem icon={Briefcase} label="Experience" value={worker.experience_level ?? '—'} />
-                <InfoItem icon={IndianRupee} label="Daily Wage" value={fmtMoney(worker.daily_wage)} />
-                <InfoItem label="Gender" value={worker.gender ?? '—'} />
-                <InfoItem label="Registered" value={fmtDate(worker.created_at)} />
-                {worker.status === 'rejected' && worker.rejection_reason && (
-                  <InfoItem label="Rejection Reason" value={worker.rejection_reason} />
-                )}
-              </div>
+              {saveError && (
+                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--accent)]">
+                  <AlertTriangle size={13} /> {saveError}
+                </div>
+              )}
 
-              {skills.length > 0 && (
+              {editing ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <EditField label="Mobile" value={form.mobile_no} onChange={v => setField('mobile_no', v)} />
+                  <EditField label="Date of Birth" type="date" value={form.date_of_birth} onChange={v => setField('date_of_birth', v)} />
+                  <EditField label="City" value={form.city} onChange={v => setField('city', v)} />
+                  <EditField label="State" value={form.state} onChange={v => setField('state', v)} />
+                  <EditField label="Experience" value={form.experience_level} onChange={v => setField('experience_level', v)} />
+                  <EditField label="Daily Wage" type="number" value={form.daily_wage} onChange={v => setField('daily_wage', v)} />
+                  <EditField label="Gender" value={form.gender} onChange={v => setField('gender', v)} select options={['Male', 'Female', 'Other']} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <InfoItem icon={Phone} label="Mobile" value={worker.mobile_no} />
+                  <InfoItem icon={Cake} label="Date of Birth" value={fmtDate(worker.date_of_birth)} />
+                  <InfoItem icon={MapPin} label="Location" value={[worker.city, worker.state].filter(Boolean).join(', ') || '—'} />
+                  <InfoItem icon={Briefcase} label="Experience" value={worker.experience_level ?? '—'} />
+                  <InfoItem icon={IndianRupee} label="Daily Wage" value={fmtMoney(worker.daily_wage)} />
+                  <InfoItem label="Gender" value={worker.gender ?? '—'} />
+                  <InfoItem label="Registered" value={fmtDate(worker.created_at)} />
+                  {worker.status === 'rejected' && worker.rejection_reason && (
+                    <InfoItem label="Rejection Reason" value={worker.rejection_reason} />
+                  )}
+                </div>
+              )}
+
+              {editing ? (
+                <div className="grid grid-cols-3 gap-3 max-w-md mt-1">
+                  <EditField label="Skill 1" value={form.skill_1} onChange={v => setField('skill_1', v)} />
+                  <EditField label="Skill 2" value={form.skill_2} onChange={v => setField('skill_2', v)} />
+                  <EditField label="Skill 3" value={form.skill_3} onChange={v => setField('skill_3', v)} />
+                </div>
+              ) : skills.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {skills.map(s => (
                     <span key={s} className="px-2.5 py-1 rounded-full bg-black/[0.04] text-xs font-bold text-[var(--ink)]">{s}</span>
@@ -306,6 +418,22 @@ function InfoItem({ icon: Icon, label, value }) {
         {Icon && <Icon size={11} />} {label}
       </span>
       <span className="text-sm font-semibold text-[var(--ink)]">{value}</span>
+    </div>
+  );
+}
+
+function EditField({ label, value, onChange, type = 'text', select, options }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--mut)]">{label}</span>
+      {select ? (
+        <select value={value ?? ''} onChange={e => onChange(e.target.value)} className={input}>
+          <option value="">—</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} className={input} />
+      )}
     </div>
   );
 }
