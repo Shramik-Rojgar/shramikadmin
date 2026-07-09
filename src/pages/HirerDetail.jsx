@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   ArrowLeft, Loader2, Phone, Mail, MapPin, Building2, User,
   Eye, EyeOff, Landmark, ScrollText, AlertTriangle,
@@ -22,47 +24,38 @@ const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: 
 const fmtMoney = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—';
 
 export default function HirerDetail({ hirerId, onNav, onBack }) {
-  const [hirer,    setHirer]    = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [jobs,      setJobs]    = useState([]);
-  const [loading,   setLoading] = useState(true);
-  const [notFound,  setNotFound] = useState(false);
-  const [jobsError, setJobsError] = useState(null);
   const [revealedAccounts, setRevealedAccounts] = useState(() => new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setNotFound(false);
-    setJobsError(null);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: queryKeys.hirer(hirerId),
+    queryFn: async () => {
+      const [hirerRes, accountsRes, jobsRes] = await Promise.all([
+        supabase.from('hirers').select('*').eq('id', hirerId).single(),
+        supabase.from('hirer_bank_accounts').select('*').eq('hirer_id', hirerId),
+        supabase
+          .from('jobs')
+          .select('id, job_id, title, city, status, workers_required, selected_workers_count, escrow_amount, escrow_status, created_at')
+          .eq('hirer_id', hirerId)
+          .order('created_at', { ascending: false }),
+      ]);
 
-    const [hirerRes, accountsRes, jobsRes] = await Promise.all([
-      supabase.from('hirers').select('*').eq('id', hirerId).single(),
-      supabase.from('hirer_bank_accounts').select('*').eq('hirer_id', hirerId),
-      supabase
-        .from('jobs')
-        .select('id, job_id, title, city, status, workers_required, selected_workers_count, escrow_amount, escrow_status, created_at')
-        .eq('hirer_id', hirerId)
-        .order('created_at', { ascending: false }),
-    ]);
+      if (accountsRes.error) console.error('[hirer_bank_accounts]', accountsRes.error.message);
+      if (jobsRes.error) console.error('[jobs]', jobsRes.error.message);
 
-    if (hirerRes.error || !hirerRes.data) {
-      setNotFound(true);
-    } else {
-      setHirer(hirerRes.data);
-    }
+      return {
+        hirer: hirerRes.error ? null : hirerRes.data,
+        accounts: accountsRes.data ?? [],
+        jobs: jobsRes.data ?? [],
+        jobsError: jobsRes.error?.message ?? null,
+      };
+    },
+  });
 
-    if (accountsRes.error) console.error('[hirer_bank_accounts]', accountsRes.error.message);
-    setAccounts(accountsRes.data ?? []);
-
-    if (jobsRes.error) {
-      console.error('[jobs]', jobsRes.error.message);
-      setJobsError(jobsRes.error.message);
-    }
-    setJobs(jobsRes.data ?? []);
-    setLoading(false);
-  }, [hirerId]);
-
-  useEffect(() => { load(); }, [load]);
+  const hirer = data?.hirer ?? null;
+  const accounts = data?.accounts ?? [];
+  const jobs = data?.jobs ?? [];
+  const jobsError = data?.jobsError ?? null;
+  const notFound = !loading && !hirer;
 
   const toggleAccountReveal = (id) => {
     setRevealedAccounts(prev => {

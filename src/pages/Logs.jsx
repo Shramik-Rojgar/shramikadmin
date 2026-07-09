@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   ScrollText, RefreshCw, Loader2, Search, Terminal, ServerCog, AlertTriangle,
 } from 'lucide-react';
@@ -77,39 +79,36 @@ export default function Logs() {
 // Activity Logs — every admin action, written by src/lib/activityLog.js
 // ─────────────────────────────────────────────────────────
 function ActivityLogs() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tableMissing, setTableMissing] = useState(false);
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('admin_activity_logs')
-      .select('id, admin_id, admin_email, admin_name, action, entity_type, entity_id, description, metadata, created_at')
-      .order('created_at', { ascending: false })
-      .limit(FETCH_LIMIT);
+  const { data: logs = [], isLoading: loading, error, refetch } = useQuery({
+    queryKey: queryKeys.activityLogs,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_activity_logs')
+        .select('id, admin_id, admin_email, admin_name, action, entity_type, entity_id, description, metadata, created_at')
+        .order('created_at', { ascending: false })
+        .limit(FETCH_LIMIT);
 
-    if (error) {
-      // 42P01 = undefined_table (raw pg error) — PGRST205 = PostgREST schema-cache miss.
-      // Both mean the migration in supabase/admin_activity_logs.sql hasn't been run yet.
-      setTableMissing(
-        error.code === '42P01' ||
-        error.code === 'PGRST205' ||
-        /relation .* does not exist/i.test(error.message) ||
-        /could not find the table/i.test(error.message)
-      );
-      console.error('[admin_activity_logs]', error.message);
-      setLogs([]);
-    } else {
-      setLogs(data ?? []);
-    }
-    setLoading(false);
-  }, []);
+      if (error) {
+        console.error('[admin_activity_logs]', error.message);
+        throw error;
+      }
+      return data ?? [];
+    },
+  });
+  const load = () => refetch();
 
-  useEffect(() => { load(); }, [load]);
+  // 42P01 = undefined_table (raw pg error) — PGRST205 = PostgREST schema-cache miss.
+  // Both mean the migration in supabase/admin_activity_logs.sql hasn't been run yet.
+  const tableMissing = !!error && (
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    /relation .* does not exist/i.test(error.message) ||
+    /could not find the table/i.test(error.message)
+  );
 
   const actions = useMemo(() => [...new Set(logs.map(l => l.action))].sort(), [logs]);
 

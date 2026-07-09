@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
+import { queryKeys } from '../lib/queryKeys';
 import { Loader2, RefreshCw, CheckCircle, XCircle, Landmark } from 'lucide-react';
 import {
   Table,
@@ -61,25 +63,23 @@ function statusOf(row) {
 const maskAccount = (num) => num ? `••••${String(num).slice(-4)}` : '—';
 
 export default function PaymentsVerification() {
-  const [accounts, setAccounts] = useState([]);
-  const [loading,  setLoading]  = useState(true);
+  const queryClient = useQueryClient();
   const [tab,      setTab]      = useState('pending');
   const [owner,    setOwner]    = useState('all');
   const [acting,   setActing]   = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [hirerAccounts, labourerAccounts] = await Promise.all([
-      fetchAccounts('hirer_bank_accounts', 'Hirer'),
-      fetchAccounts('labourer_bank_accounts', 'Labourer'),
-    ]);
-    const merged = [...hirerAccounts, ...labourerAccounts]
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    setAccounts(merged);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const { data: accounts = [], isLoading: loading, refetch, isFetching } = useQuery({
+    queryKey: queryKeys.bankAccountsPending,
+    queryFn: async () => {
+      const [hirerAccounts, labourerAccounts] = await Promise.all([
+        fetchAccounts('hirer_bank_accounts', 'Hirer'),
+        fetchAccounts('labourer_bank_accounts', 'Labourer'),
+      ]);
+      return [...hirerAccounts, ...labourerAccounts]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    },
+  });
+  const load = () => refetch();
 
   const accept = async (row) => {
     setActing(row.id);
@@ -89,7 +89,7 @@ export default function PaymentsVerification() {
       .eq('id', row.id);
     logActivity('bank_account_verified', { entityType: row.owner, entityId: row.id, description: `Verified ${row.owner.toLowerCase()} bank account for ${row.account_holder_name}` });
     setActing(null);
-    load();
+    queryClient.invalidateQueries({ queryKey: queryKeys.bankAccountsPending });
   };
 
   const reject = async (row) => {
@@ -100,7 +100,7 @@ export default function PaymentsVerification() {
       .eq('id', row.id);
     logActivity('bank_account_rejected', { entityType: row.owner, entityId: row.id, description: `Rejected ${row.owner.toLowerCase()} bank account for ${row.account_holder_name}` });
     setActing(null);
-    load();
+    queryClient.invalidateQueries({ queryKey: queryKeys.bankAccountsPending });
   };
 
   const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';

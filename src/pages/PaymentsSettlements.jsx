@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
+import { queryKeys } from '../lib/queryKeys';
 import {
   IndianRupee, Wallet, Clock, Undo2, CheckCircle2, RefreshCw, Loader2,
   Search, ExternalLink, RotateCcw, Printer,
@@ -87,13 +89,7 @@ const td = 'px-4 py-3.5 text-[var(--mut)] text-xs font-semibold';
 const tdStrong = 'px-4 py-3.5 font-semibold text-[var(--ink)] text-sm';
 
 export default function PaymentsSettlements() {
-  const [jobs,       setJobs]       = useState([]);
-  const [jobWorkers, setJobWorkers] = useState([]);
-  const [payouts,    setPayouts]    = useState([]);
-  const [refunds,    setRefunds]    = useState([]);
-  const [payments,   setPayments]   = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [loading,    setLoading]    = useState(true);
+  const queryClient = useQueryClient();
 
   const [tab,    setTab]    = useState('queue');
   const [search, setSearch] = useState('');
@@ -109,56 +105,65 @@ export default function PaymentsSettlements() {
   const [refundReason, setRefundReason] = useState('');
   const [acting, setActing] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [jobsRes, jwRes, payoutsRes, refundsRes, paymentsRes, attendanceRes] = await Promise.all([
-      supabase
-        .from('jobs')
-        .select('id, job_id, title, city, status, workers_required, escrow_amount, escrow_status, payment_status, actual_total_amount, refunded_amount, wage_amount, created_at, hirer_id, hirers(first_name,last_name,company_name)')
-        .order('created_at', { ascending: false })
-        .limit(FETCH_LIMIT),
-      supabase
-        .from('job_workers')
-        .select('id, job_id, labourer_id, hirer_id, status, payout_id, payment_status, created_at, labourers(full_name)')
-        .limit(FETCH_LIMIT * 4),
-      supabase
-        .from('worker_payouts')
-        .select('id, payout_id, job_worker_id, payment_id, attendance_days, half_days, absent_days, overtime_amount, bonus_amount, deduction_amount, gross_amount, net_amount, payment_status, paid_at, created_at, transaction_reference, payments(payment_method)')
-        .order('created_at', { ascending: false })
-        .limit(FETCH_LIMIT * 2),
-      supabase
-        .from('refunds')
-        .select('id, refund_id, refund_amount, refund_reason, status, razorpay_refund_id, refunded_at, created_at, job_id, hirer_id, payment_id, hirers(first_name,last_name,company_name), payments(payment_id), jobs(job_id)')
-        .order('created_at', { ascending: false })
-        .limit(FETCH_LIMIT),
-      supabase
-        .from('payments')
-        .select('id, payment_id, payment_type, amount, currency, payment_method, status, paid_at, created_at, job_id, hirer_id, labourer_id, jobs(job_id,city), hirers(first_name,last_name,company_name), labourers(full_name)')
-        .order('created_at', { ascending: false })
-        .limit(FETCH_LIMIT),
-      supabase
-        .from('attendance')
-        .select('id, job_worker_id, status, attendance_date')
-        .limit(FETCH_LIMIT * 5),
-    ]);
+  const { data, isLoading: loading, refetch } = useQuery({
+    queryKey: queryKeys.settlementsBundle,
+    queryFn: async () => {
+      const [jobsRes, jwRes, payoutsRes, refundsRes, paymentsRes, attendanceRes] = await Promise.all([
+        supabase
+          .from('jobs')
+          .select('id, job_id, title, city, status, workers_required, escrow_amount, escrow_status, payment_status, actual_total_amount, refunded_amount, wage_amount, created_at, hirer_id, hirers(first_name,last_name,company_name)')
+          .order('created_at', { ascending: false })
+          .limit(FETCH_LIMIT),
+        supabase
+          .from('job_workers')
+          .select('id, job_id, labourer_id, hirer_id, status, payout_id, payment_status, created_at, labourers(full_name)')
+          .limit(FETCH_LIMIT * 4),
+        supabase
+          .from('worker_payouts')
+          .select('id, payout_id, job_worker_id, payment_id, attendance_days, half_days, absent_days, overtime_amount, bonus_amount, deduction_amount, gross_amount, net_amount, payment_status, paid_at, created_at, transaction_reference, payments(payment_method)')
+          .order('created_at', { ascending: false })
+          .limit(FETCH_LIMIT * 2),
+        supabase
+          .from('refunds')
+          .select('id, refund_id, refund_amount, refund_reason, status, razorpay_refund_id, refunded_at, created_at, job_id, hirer_id, payment_id, hirers(first_name,last_name,company_name), payments(payment_id), jobs(job_id)')
+          .order('created_at', { ascending: false })
+          .limit(FETCH_LIMIT),
+        supabase
+          .from('payments')
+          .select('id, payment_id, payment_type, amount, currency, payment_method, status, paid_at, created_at, job_id, hirer_id, labourer_id, jobs(job_id,city), hirers(first_name,last_name,company_name), labourers(full_name)')
+          .order('created_at', { ascending: false })
+          .limit(FETCH_LIMIT),
+        supabase
+          .from('attendance')
+          .select('id, job_worker_id, status, attendance_date')
+          .limit(FETCH_LIMIT * 5),
+      ]);
 
-    if (jobsRes.error)     console.error('[jobs]', jobsRes.error.message);
-    if (jwRes.error)       console.error('[job_workers]', jwRes.error.message);
-    if (payoutsRes.error)  console.error('[worker_payouts]', payoutsRes.error.message);
-    if (refundsRes.error)  console.error('[refunds]', refundsRes.error.message);
-    if (paymentsRes.error) console.error('[payments]', paymentsRes.error.message);
-    if (attendanceRes.error) console.error('[attendance]', attendanceRes.error.message);
+      if (jobsRes.error)     console.error('[jobs]', jobsRes.error.message);
+      if (jwRes.error)       console.error('[job_workers]', jwRes.error.message);
+      if (payoutsRes.error)  console.error('[worker_payouts]', payoutsRes.error.message);
+      if (refundsRes.error)  console.error('[refunds]', refundsRes.error.message);
+      if (paymentsRes.error) console.error('[payments]', paymentsRes.error.message);
+      if (attendanceRes.error) console.error('[attendance]', attendanceRes.error.message);
 
-    setJobs(jobsRes.data ?? []);
-    setJobWorkers(jwRes.data ?? []);
-    setPayouts(payoutsRes.data ?? []);
-    setRefunds(refundsRes.data ?? []);
-    setPayments(paymentsRes.data ?? []);
-    setAttendance(attendanceRes.data ?? []);
-    setLoading(false);
-  }, []);
+      return {
+        jobs: jobsRes.data ?? [],
+        jobWorkers: jwRes.data ?? [],
+        payouts: payoutsRes.data ?? [],
+        refunds: refundsRes.data ?? [],
+        payments: paymentsRes.data ?? [],
+        attendance: attendanceRes.data ?? [],
+      };
+    },
+  });
 
-  useEffect(() => { load(); }, [load]);
+  const jobs       = data?.jobs ?? [];
+  const jobWorkers = data?.jobWorkers ?? [];
+  const payouts    = data?.payouts ?? [];
+  const refunds    = data?.refunds ?? [];
+  const payments   = data?.payments ?? [];
+  const attendance = data?.attendance ?? [];
+  const load = () => refetch();
 
   // reset filters when switching tabs so a stale status filter doesn't hide everything
   useEffect(() => { setStatusFilter('all'); setSearch(''); setJobFilter('all'); }, [tab]);
@@ -384,6 +389,8 @@ export default function PaymentsSettlements() {
     logActivity('workers_paid', { entityType: 'job', entityId: job?.job_id ?? jobId, description: `Marked worker payouts as paid for job ${job?.job_id ?? jobId}` });
     setActing(false);
     load();
+    queryClient.invalidateQueries({ queryKey: queryKeys.job(jobId) });
+    queryClient.invalidateQueries({ queryKey: ['labourers', 'detail'] });
   };
 
   const closeSettlement = async (jobId) => {
@@ -393,6 +400,7 @@ export default function PaymentsSettlements() {
     logActivity('settlement_closed', { entityType: 'job', entityId: job?.job_id ?? jobId, description: `Closed settlement for job ${job?.job_id ?? jobId}` });
     setActing(false);
     load();
+    queryClient.invalidateQueries({ queryKey: queryKeys.job(jobId) });
   };
 
   const retryRefund = async (refund) => {
@@ -439,6 +447,7 @@ export default function PaymentsSettlements() {
     setRefundAmount('');
     setRefundReason('');
     load();
+    queryClient.invalidateQueries({ queryKey: queryKeys.job(refundDialog.job.id) });
   };
 
   const downloadInvoice = (row) => {

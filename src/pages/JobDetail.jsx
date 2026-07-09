@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   ArrowLeft, Loader2, Calendar, MapPin, Building2, Map, Briefcase,
   CheckCircle2, AlertTriangle, Pause, XCircle, ArrowRight,
@@ -26,14 +28,7 @@ const STATUS_COLORS = {
 };
 
 export default function JobDetail({ jobId, onBack }) {
-  const [job, setJob] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-
-  const [jobWorkers, setJobWorkers] = useState([]);
-  const [jobApplications, setJobApplications] = useState([]);
-  const [jobHireRequests, setJobHireRequests] = useState([]);
-  const [jobAttendance, setJobAttendance] = useState([]);
+  const queryClient = useQueryClient();
 
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [workerAttendanceList, setWorkerAttendanceList] = useState([]);
@@ -41,39 +36,42 @@ export default function JobDetail({ jobId, onBack }) {
   const [confirmAction, setConfirmAction] = useState(null); // { type } | null
   const [acting, setActing] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setNotFound(false);
+  const { data, isLoading: loading, refetch } = useQuery({
+    queryKey: queryKeys.job(jobId),
+    queryFn: async () => {
+      const jobRes = await supabase.from('jobs').select('*, hirers(*)').eq('id', jobId).single();
+      if (jobRes.error || !jobRes.data) {
+        return { job: null, jobWorkers: [], jobApplications: [], jobHireRequests: [], jobAttendance: [] };
+      }
 
-    const jobRes = await supabase.from('jobs').select('*, hirers(*)').eq('id', jobId).single();
+      const [jwRes, appsRes, hrsRes] = await Promise.all([
+        supabase.from('job_workers').select('*, labourers(*)').eq('job_id', jobId),
+        supabase.from('job_applications').select('*').eq('job_id', jobId),
+        supabase.from('job_hire_requests').select('*').eq('job_id', jobId),
+      ]);
 
-    if (jobRes.error || !jobRes.data) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    setJob(jobRes.data);
+      const workerIds = (jwRes.data ?? []).map(w => w.id);
+      let attRes = { data: [] };
+      if (workerIds.length > 0) {
+        attRes = await supabase.from('attendance').select('*').in('job_worker_id', workerIds);
+      }
 
-    const [jwRes, appsRes, hrsRes] = await Promise.all([
-      supabase.from('job_workers').select('*, labourers(*)').eq('job_id', jobId),
-      supabase.from('job_applications').select('*').eq('job_id', jobId),
-      supabase.from('job_hire_requests').select('*').eq('job_id', jobId),
-    ]);
+      return {
+        job: jobRes.data,
+        jobWorkers: jwRes.data ?? [],
+        jobApplications: appsRes.data ?? [],
+        jobHireRequests: hrsRes.data ?? [],
+        jobAttendance: attRes.data ?? [],
+      };
+    },
+  });
 
-    const workerIds = (jwRes.data ?? []).map(w => w.id);
-    let attRes = { data: [] };
-    if (workerIds.length > 0) {
-      attRes = await supabase.from('attendance').select('*').in('job_worker_id', workerIds);
-    }
-
-    setJobWorkers(jwRes.data ?? []);
-    setJobApplications(appsRes.data ?? []);
-    setJobHireRequests(hrsRes.data ?? []);
-    setJobAttendance(attRes.data ?? []);
-    setLoading(false);
-  }, [jobId]);
-
-  useEffect(() => { load(); }, [load]);
+  const job = data?.job ?? null;
+  const jobWorkers = data?.jobWorkers ?? [];
+  const jobApplications = data?.jobApplications ?? [];
+  const jobHireRequests = data?.jobHireRequests ?? [];
+  const jobAttendance = data?.jobAttendance ?? [];
+  const notFound = !loading && !job;
 
   const workerDetail = useMemo(() => {
     if (!selectedWorker) return null;
@@ -98,7 +96,8 @@ export default function JobDetail({ jobId, onBack }) {
     if (error) {
       alert('Error updating job status: ' + error.message);
     } else {
-      load();
+      refetch();
+      queryClient.invalidateQueries({ queryKey: queryKeys.jobs });
     }
     setActing(false);
     setConfirmAction(null);

@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   Briefcase, Search, Filter, RefreshCw, Loader2,
   Download, CheckCircle2, AlertTriangle, Play, XCircle, UserCheck, Clock
@@ -34,8 +36,7 @@ const td = 'px-4 py-3.5 text-[var(--mut)] text-xs font-semibold';
 const tdStrong = 'px-4 py-3.5 font-semibold text-[var(--ink)] text-sm';
 
 export default function Jobs({ onNav }) {
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedJobs, setSelectedJobs] = useState([]);
   const [acting, setActing] = useState(false);
@@ -49,24 +50,20 @@ export default function Jobs({ onNav }) {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateRangeFilter, setDateRangeFilter] = useState('all'); // all, 7d, 30d, 90d
 
-  // Fetch jobs
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*, hirers(*)')
-      .order('created_at', { ascending: false })
-      .limit(FETCH_LIMIT);
-
-    if (error) {
-      console.error('[jobs]', error.message);
-    } else {
-      setJobs(data ?? []);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  // Fetch jobs (cached — see src/lib/queryClient.js)
+  const { data: jobs = [], isLoading: loading, refetch, isFetching } = useQuery({
+    queryKey: queryKeys.jobs,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*, hirers(*)')
+        .order('created_at', { ascending: false })
+        .limit(FETCH_LIMIT);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const load = () => refetch();
 
   // Derived lookup lists for filters
   const cities = useMemo(() => [...new Set(jobs.map(j => j.city).filter(Boolean))].sort(), [jobs]);
@@ -148,6 +145,7 @@ export default function Jobs({ onNav }) {
     } else if (actionType === 'complete') {
       await supabase.from('jobs').update({ status: 'completed' }).in('id', selectedJobs);
     }
+    selectedJobs.forEach(id => queryClient.invalidateQueries({ queryKey: queryKeys.job(id) }));
     setSelectedJobs([]);
     load();
     setActing(false);
@@ -261,7 +259,7 @@ export default function Jobs({ onNav }) {
             onClick={load}
             className="glass rounded-xl px-4 py-2 h-auto gap-2 text-sm font-semibold text-[var(--mut)] hover:text-[var(--ink)]"
           >
-            <RefreshCw size={14} className={cn(loading && 'animate-spin')} />
+            <RefreshCw size={14} className={cn((loading || isFetching) && 'animate-spin')} />
             Refresh
           </Button>
 

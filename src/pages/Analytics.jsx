@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   TrendingUp, Users, Briefcase, IndianRupee, CreditCard, UserCheck, ShieldAlert,
   ArrowUpRight, ArrowDownRight, RefreshCw, Loader2, Download, Filter, Calendar,
@@ -28,13 +30,6 @@ const fmtDateTime = (iso) => iso
 const TX_STATUSES = ['all', 'created', 'captured', 'paid', 'pending', 'failed', 'refunded'];
 
 export default function Analytics() {
-  const [jobs, setJobs] = useState([]);
-  const [workers, setWorkers] = useState([]);
-  const [hirers, setHirers] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [loading, setLoading] = useState(true);
-
   // Filters
   const [dateRange, setDateRange] = useState('30d'); // today, 7d, 30d, 90d, year, custom
   const [customStart, setCustomStart] = useState('');
@@ -42,26 +37,34 @@ export default function Analytics() {
   const [activeTab, setActiveTab] = useState('overview');
   const [txStatusFilter, setTxStatusFilter] = useState('all');
 
-  // Load all tables for aggregate analytics
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [jobsRes, workersRes, hirersRes, paymentsRes, attendanceRes] = await Promise.all([
-      supabase.from('jobs').select('*').limit(FETCH_LIMIT),
-      supabase.from('labourers').select('*').limit(FETCH_LIMIT),
-      supabase.from('hirers').select('*').limit(FETCH_LIMIT),
-      supabase.from('payments').select('*').limit(FETCH_LIMIT),
-      supabase.from('attendance').select('*').limit(FETCH_LIMIT * 2)
-    ]);
+  // Load all tables for aggregate analytics (cached — see src/lib/queryClient.js)
+  const { data, isLoading: loading, refetch } = useQuery({
+    queryKey: queryKeys.analyticsBundle,
+    queryFn: async () => {
+      const [jobsRes, workersRes, hirersRes, paymentsRes, attendanceRes] = await Promise.all([
+        supabase.from('jobs').select('*').limit(FETCH_LIMIT),
+        supabase.from('labourers').select('*').limit(FETCH_LIMIT),
+        supabase.from('hirers').select('*').limit(FETCH_LIMIT),
+        supabase.from('payments').select('*').limit(FETCH_LIMIT),
+        supabase.from('attendance').select('*').limit(FETCH_LIMIT * 2)
+      ]);
 
-    setJobs(jobsRes.data ?? []);
-    setWorkers(workersRes.data ?? []);
-    setHirers(hirersRes.data ?? []);
-    setPayments(paymentsRes.data ?? []);
-    setAttendance(attendanceRes.data ?? []);
-    setLoading(false);
-  }, []);
+      return {
+        jobs: jobsRes.data ?? [],
+        workers: workersRes.data ?? [],
+        hirers: hirersRes.data ?? [],
+        payments: paymentsRes.data ?? [],
+        attendance: attendanceRes.data ?? [],
+      };
+    },
+  });
 
-  useEffect(() => { load(); }, [load]);
+  const jobs = data?.jobs ?? [];
+  const workers = data?.workers ?? [];
+  const hirers = data?.hirers ?? [];
+  const payments = data?.payments ?? [];
+  const attendance = data?.attendance ?? [];
+  const load = () => refetch();
 
   // Date range cutoff helper
   const dateCutoff = useMemo(() => {

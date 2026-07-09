@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
+import { queryKeys } from '../lib/queryKeys';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, AlertTriangle } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -12,8 +14,7 @@ const STATUS_BADGE = {
 const FILTERS = ['pending', 'approved', 'rejected'];
 
 export default function Workers() {
-  const [workers,   setWorkers]   = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const queryClient = useQueryClient();
   const [filter,    setFilter]    = useState('pending');
   const [preview,   setPreview]   = useState(null);   // worker row for photo modal
   const [rejectRow, setRejectRow] = useState(null);   // worker row for rejection modal
@@ -35,30 +36,29 @@ export default function Workers() {
     toastTimeout.current = setTimeout(() => setToast(null), 4500);
   }, []);
 
-  const fetchWorkers = useCallback(async () => {
-    setLoading(true);
-    let q = supabase
-      .from('labourers')
-      .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, photo_url, government_id_url, status, rejection_reason, created_at')
-      .order('created_at', { ascending: false });
+  const queryKey = queryKeys.workersByStatus(filter);
+  const { data: workers = [], isLoading: loading, refetch, isFetching } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      let q = supabase
+        .from('labourers')
+        .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, photo_url, government_id_url, status, rejection_reason, created_at')
+        .order('created_at', { ascending: false });
+      if (filter !== 'all') q = q.eq('status', filter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-    if (filter !== 'all') q = q.eq('status', filter);
-
-    const { data, error } = await q;
-    if (!error) setWorkers(data ?? []);
-    setLoading(false);
-  }, [filter]);
-
-  useEffect(() => { fetchWorkers(); }, [fetchWorkers]);
-
-  // Optimistically fade the row out and drop it from local state, then sync
-  // the DB in the background. If the DB call fails, restore the row and
-  // swap the success card for an error card — the user never waits on a
-  // full table reload either way.
+  // Optimistically fade the row out and drop it from the cached query data,
+  // then sync the DB in the background. If the DB call fails, restore the
+  // row and swap the success card for an error card — the user never waits
+  // on a full table reload either way.
   const removeRowOptimistically = (id) => {
     setRemovingIds(prev => new Set(prev).add(id));
     removalTimeouts.current[id] = setTimeout(() => {
-      setWorkers(prev => prev.filter(w => w.id !== id));
+      queryClient.setQueryData(queryKey, (prev = []) => prev.filter(w => w.id !== id));
       setRemovingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     }, 260);
   };
@@ -66,7 +66,7 @@ export default function Workers() {
   const restoreRow = (worker) => {
     clearTimeout(removalTimeouts.current[worker.id]);
     setRemovingIds(prev => { const n = new Set(prev); n.delete(worker.id); return n; });
-    setWorkers(prev => prev.some(w => w.id === worker.id) ? prev : [worker, ...prev]);
+    queryClient.setQueryData(queryKey, (prev = []) => prev.some(w => w.id === worker.id) ? prev : [worker, ...prev]);
   };
 
   const approve = async (worker) => {
@@ -83,6 +83,8 @@ export default function Workers() {
       showToast('error', `Couldn't approve ${worker.full_name} — ${error.message}`);
     } else {
       logActivity('worker_approved', { entityType: 'labourer', entityId: worker.labour_id ?? worker.id, description: `Approved worker ${worker.full_name}` });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workersApproved });
+      queryClient.invalidateQueries({ queryKey: queryKeys.worker(worker.id) });
     }
   };
 
@@ -103,6 +105,8 @@ export default function Workers() {
       showToast('error', `Couldn't reject ${worker.full_name} — ${error.message}`);
     } else {
       logActivity('worker_rejected', { entityType: 'labourer', entityId: worker.labour_id ?? worker.id, description: `Rejected worker ${worker.full_name}${reason ? ` — ${reason}` : ''}` });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workersApproved });
+      queryClient.invalidateQueries({ queryKey: queryKeys.worker(worker.id) });
     }
   };
 
@@ -122,10 +126,10 @@ export default function Workers() {
           <p className="text-sm text-[var(--mut)] font-semibold mt-1">Review and verify labourer registrations</p>
         </div>
         <button
-          onClick={fetchWorkers}
+          onClick={() => refetch()}
           className="flex items-center gap-2 px-4 py-2 rounded-xl glass text-sm font-semibold text-[var(--mut)] hover:text-[var(--ink)] transition-colors cursor-pointer"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
           Refresh
         </button>
       </div>
@@ -223,6 +227,7 @@ export default function Workers() {
                         </p>
                       )}
                     </td>
+
                     {/* Govt ID link */}
                     <td>
                       {w.government_id_url
@@ -233,6 +238,7 @@ export default function Workers() {
                         : <span className="text-xs text-[var(--mut)]">—</span>
                       }
                     </td>
+
                     {/* Approve / Reject */}
                     <td>
                       <div className="flex items-center gap-2">

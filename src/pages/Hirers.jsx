@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
+import { queryKeys } from '../lib/queryKeys';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, Building2, User, AlertTriangle } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -12,8 +14,7 @@ const STATUS_BADGE = {
 const FILTERS = ['pending', 'active', 'blocked'];
 
 export default function Hirers() {
-  const [hirers,    setHirers]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const queryClient = useQueryClient();
   const [filter,    setFilter]    = useState('pending');
   const [blockRow,  setBlockRow]  = useState(null);
   const [reason,    setReason]    = useState('');
@@ -34,30 +35,29 @@ export default function Hirers() {
     toastTimeout.current = setTimeout(() => setToast(null), 4500);
   }, []);
 
-  const fetchHirers = useCallback(async () => {
-    setLoading(true);
-    let q = supabase
-      .from('hirers')
-      .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_url, is_verified, status, rejection_reason, created_at')
-      .order('created_at', { ascending: false });
+  const queryKey = queryKeys.hirersByStatus(filter);
+  const { data: hirers = [], isLoading: loading, refetch, isFetching } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      let q = supabase
+        .from('hirers')
+        .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_url, is_verified, status, rejection_reason, created_at')
+        .order('created_at', { ascending: false });
+      if (filter !== 'all') q = q.eq('status', filter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-    if (filter !== 'all') q = q.eq('status', filter);
-
-    const { data, error } = await q;
-    if (!error) setHirers(data ?? []);
-    setLoading(false);
-  }, [filter]);
-
-  useEffect(() => { fetchHirers(); }, [fetchHirers]);
-
-  // Optimistically fade the row out and drop it from local state, then sync
-  // the DB in the background. If the DB call fails, restore the row and
-  // swap the success card for an error card — the user never waits on a
-  // full table reload either way.
+  // Optimistically fade the row out and drop it from the cached query data,
+  // then sync the DB in the background. If the DB call fails, restore the
+  // row and swap the success card for an error card — the user never waits
+  // on a full table reload either way.
   const removeRowOptimistically = (id) => {
     setRemovingIds(prev => new Set(prev).add(id));
     removalTimeouts.current[id] = setTimeout(() => {
-      setHirers(prev => prev.filter(h => h.id !== id));
+      queryClient.setQueryData(queryKey, (prev = []) => prev.filter(h => h.id !== id));
       setRemovingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     }, 260);
   };
@@ -65,7 +65,7 @@ export default function Hirers() {
   const restoreRow = (hirer) => {
     clearTimeout(removalTimeouts.current[hirer.id]);
     setRemovingIds(prev => { const n = new Set(prev); n.delete(hirer.id); return n; });
-    setHirers(prev => prev.some(h => h.id === hirer.id) ? prev : [hirer, ...prev]);
+    queryClient.setQueryData(queryKey, (prev = []) => prev.some(h => h.id === hirer.id) ? prev : [hirer, ...prev]);
   };
 
   const approve = async (hirer) => {
@@ -82,6 +82,8 @@ export default function Hirers() {
       showToast('error', `Couldn't approve ${hirer.first_name} ${hirer.last_name} — ${error.message}`);
     } else {
       logActivity('hirer_approved', { entityType: 'hirer', entityId: hirer.hirer_id ?? hirer.id, description: `Approved hirer ${hirer.first_name} ${hirer.last_name}` });
+      queryClient.invalidateQueries({ queryKey: queryKeys.hirersActive });
+      queryClient.invalidateQueries({ queryKey: queryKeys.hirer(hirer.id) });
     }
   };
 
@@ -105,6 +107,8 @@ export default function Hirers() {
       showToast('error', `Couldn't block ${hirer.first_name} ${hirer.last_name} — ${error.message}`);
     } else {
       logActivity('hirer_blocked', { entityType: 'hirer', entityId: hirer.hirer_id ?? hirer.id, description: `Blocked hirer ${hirer.first_name} ${hirer.last_name}${reason ? ` — ${reason}` : ''}` });
+      queryClient.invalidateQueries({ queryKey: queryKeys.hirersActive });
+      queryClient.invalidateQueries({ queryKey: queryKeys.hirer(hirer.id) });
     }
   };
 
@@ -126,10 +130,10 @@ export default function Hirers() {
           <p className="text-sm text-[var(--mut)] font-semibold mt-1">Review and verify hirer registrations</p>
         </div>
         <button
-          onClick={fetchHirers}
+          onClick={() => refetch()}
           className="flex items-center gap-2 px-4 py-2 rounded-xl glass text-sm font-semibold text-[var(--mut)] hover:text-[var(--ink)] transition-colors cursor-pointer"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
           Refresh
         </button>
       </div>

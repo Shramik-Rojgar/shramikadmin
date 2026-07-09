@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   Users,
   HardHat,
@@ -13,48 +15,35 @@ import {
 } from 'lucide-react';
 
 const STATUS_BADGE = {
-  pending:  'badge badge-orange',
+  pending: 'badge badge-orange',
   approved: 'badge badge-green',
   rejected: 'badge badge-red',
 };
 
 export default function WorkersManage({ onNav }) {
-  const [workers,   setWorkers]   = useState([]);
-  const [stats,     setStats]     = useState({ total: 0, active: 0, cities: 0, avgWage: 0 });
-  const [loading,   setLoading]   = useState(true);
-  const [search,    setSearch]    = useState('');
-  const [preview,   setPreview]   = useState(null);
+  const [search, setSearch] = useState('');
+  const [preview, setPreview] = useState(null);
 
-  // ── Fetch approved workers ────────────────────────────────
-  const fetchWorkers = useCallback(async () => {
-    setLoading(true);
+  // ── Fetch approved workers (cached — see src/lib/queryClient.js) ──
+  const { data: workers = [], isLoading: loading, refetch, isFetching } = useQuery({
+    queryKey: queryKeys.workersApproved,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('labourers')
+        .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, city, state, photo_url, government_id_url, status, created_at')
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-    const { data, error } = await supabase
-      .from('labourers')
-      .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, city, state, photo_url, government_id_url, status, created_at')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setWorkers(data);
-
-      // Compute stats
-      const cities = new Set(data.map(w => w.city).filter(Boolean));
-      const wages = data.map(w => w.daily_wage).filter(Boolean);
-      const avgWage = wages.length > 0 ? Math.round(wages.reduce((a, b) => a + b, 0) / wages.length) : 0;
-
-      setStats({
-        total: data.length,
-        active: data.length, // all approved = active
-        cities: cities.size,
-        avgWage,
-      });
-    }
-
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchWorkers(); }, [fetchWorkers]);
+  const stats = useMemo(() => {
+    const cities = new Set(workers.map(w => w.city).filter(Boolean));
+    const wages = workers.map(w => w.daily_wage).filter(Boolean);
+    const avgWage = wages.length > 0 ? Math.round(wages.reduce((a, b) => a + b, 0) / wages.length) : 0;
+    return { total: workers.length, active: workers.length, cities: cities.size, avgWage };
+  }, [workers]);
 
   // ── Filtering ─────────────────────────────────────────────
   const filtered = workers.filter(w => {
@@ -76,9 +65,9 @@ export default function WorkersManage({ onNav }) {
 
   // ── Stat card config ──────────────────────────────────────
   const STAT_CARDS = [
-    { label: 'Total Workers',   value: stats.total.toLocaleString('en-IN'),          icon: Users,       color: '#E5397B' },
-    { label: 'Active Workers',  value: stats.active.toLocaleString('en-IN'),         icon: HardHat,     color: '#16B364' },
-    { label: 'Cities Covered',  value: stats.cities.toLocaleString('en-IN'),         icon: MapPin,      color: '#7A3BFF' },
+    { label: 'Total Workers', value: stats.total.toLocaleString('en-IN'), icon: Users, color: '#E5397B' },
+    { label: 'Active Workers', value: stats.active.toLocaleString('en-IN'), icon: HardHat, color: '#16B364' },
+    { label: 'Cities Covered', value: stats.cities.toLocaleString('en-IN'), icon: MapPin, color: '#7A3BFF' },
     { label: 'Avg. Daily Wage', value: stats.avgWage > 0 ? `₹${stats.avgWage}` : '—', icon: IndianRupee, color: '#FF8A1E' },
   ];
 
@@ -92,10 +81,10 @@ export default function WorkersManage({ onNav }) {
           <p className="text-sm text-[var(--mut)] font-semibold mt-1">Overview and directory of all approved workers</p>
         </div>
         <button
-          onClick={fetchWorkers}
+          onClick={() => refetch()}
           className="flex items-center gap-2 px-4 py-2 rounded-xl glass text-sm font-semibold text-[var(--mut)] hover:text-[var(--ink)] transition-colors cursor-pointer"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
           Refresh
         </button>
       </div>
@@ -166,7 +155,6 @@ export default function WorkersManage({ onNav }) {
                   <th>City</th>
                   <th>Registered</th>
                   <th>Status</th>
-                  <th>Docs</th>
                 </tr>
               </thead>
               <tbody>
@@ -187,8 +175,8 @@ export default function WorkersManage({ onNav }) {
                           {w.photo_url
                             ? <img src={w.photo_url} className="w-full h-full object-cover" alt={w.full_name} />
                             : <div className="w-full h-full flex items-center justify-center text-xs font-black text-[var(--mut)]">
-                                {w.full_name?.[0]?.toUpperCase() ?? '?'}
-                              </div>
+                              {w.full_name?.[0]?.toUpperCase() ?? '?'}
+                            </div>
                           }
                         </div>
                         <div>
@@ -209,15 +197,6 @@ export default function WorkersManage({ onNav }) {
                       <span className={STATUS_BADGE[w.status] ?? 'badge badge-gray'}>
                         {w.status}
                       </span>
-                    </td>
-                    <td>
-                      {w.government_id_url
-                        ? <a href={w.government_id_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
-                            <Eye size={12} /> View ID
-                          </a>
-                        : <span className="text-xs text-[var(--mut)]">—</span>
-                      }
                     </td>
                   </tr>
                 ))}

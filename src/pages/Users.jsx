@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
+import { queryKeys } from '../lib/queryKeys';
 import {
   Users, User, Mail, Phone, ShieldCheck, Key, ShieldAlert,
   Loader2, RefreshCw, Plus, Edit3, Trash2, Eye, ToggleLeft, ToggleRight, CheckCircle2, XCircle
@@ -48,8 +50,6 @@ const fmtTimeAgo = (iso) => {
 };
 
 export default function UsersPage({ userRole }) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
 
   // Dialog state
@@ -66,23 +66,19 @@ export default function UsersPage({ userRole }) {
   const [role, setRole] = useState('admin');
   const [isActive, setIsActive] = useState(true);
 
-  // Load all users
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('admin_users')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('[admin_users]', error.message);
-    } else {
-      setUsers(data ?? []);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  // Load all users (cached — see src/lib/queryClient.js)
+  const { data: users = [], isLoading: loading, refetch } = useQuery({
+    queryKey: queryKeys.adminUsers,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_users')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const load = () => refetch();
 
   // Aggregate staff KPI values
   const kpis = useMemo(() => {

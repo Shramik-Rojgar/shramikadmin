@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   Users, Briefcase, TrendingUp, IndianRupee, Clock, ArrowUpRight, ArrowDownRight,
   ShieldCheck, AlertTriangle, AlertCircle, Play, CheckCircle2, XCircle, Heart,
@@ -25,40 +27,38 @@ const fmtTime  = (iso) => iso ? new Date(iso).toLocaleTimeString('en-IN', { hour
 const COLORS = ['#7A3BFF', '#FF8A1E', '#16B364', '#C91D5E'];
 
 export default function Dashboard({ onNav }) {
-  const [loading, setLoading] = useState(true);
-  const [workers, setWorkers] = useState([]);
-  const [hirers, setHirers] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [hireRequests, setHireRequests] = useState([]);
+  const { data, isLoading: loading, refetch } = useQuery({
+    queryKey: queryKeys.dashboardStats,
+    queryFn: async () => {
+      const [workersRes, hirersRes, jobsRes, paymentsRes, attendanceRes, appsRes, hrsRes] = await Promise.all([
+        supabase.from('labourers').select('*').order('created_at', { ascending: false }),
+        supabase.from('hirers').select('*').order('created_at', { ascending: false }),
+        supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+        supabase.from('payments').select('*').order('created_at', { ascending: false }),
+        supabase.from('attendance').select('*').order('created_at', { ascending: false }),
+        supabase.from('job_applications').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('job_hire_requests').select('*').order('created_at', { ascending: false }).limit(200)
+      ]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const [workersRes, hirersRes, jobsRes, paymentsRes, attendanceRes, appsRes, hrsRes] = await Promise.all([
-      supabase.from('labourers').select('*').order('created_at', { ascending: false }),
-      supabase.from('hirers').select('*').order('created_at', { ascending: false }),
-      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
-      supabase.from('payments').select('*').order('created_at', { ascending: false }),
-      supabase.from('attendance').select('*').order('created_at', { ascending: false }),
-      supabase.from('job_applications').select('*').order('created_at', { ascending: false }).limit(200),
-      supabase.from('job_hire_requests').select('*').order('created_at', { ascending: false }).limit(200)
-    ]);
+      return {
+        workers: workersRes.data ?? [],
+        hirers: hirersRes.data ?? [],
+        jobs: jobsRes.data ?? [],
+        payments: paymentsRes.data ?? [],
+        attendance: attendanceRes.data ?? [],
+        applications: appsRes.data ?? [],
+        hireRequests: hrsRes.data ?? [],
+      };
+    },
+  });
 
-    setWorkers(workersRes.data ?? []);
-    setHirers(hirersRes.data ?? []);
-    setJobs(jobsRes.data ?? []);
-    setPayments(paymentsRes.data ?? []);
-    setAttendance(attendanceRes.data ?? []);
-    setApplications(appsRes.data ?? []);
-    setHireRequests(hrsRes.data ?? []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const workers = data?.workers ?? [];
+  const hirers = data?.hirers ?? [];
+  const jobs = data?.jobs ?? [];
+  const payments = data?.payments ?? [];
+  const applications = data?.applications ?? [];
+  const hireRequests = data?.hireRequests ?? [];
+  const loadData = () => refetch();
 
   // Calculations for KPI Row 1
   const totalWorkersCount = workers.length;

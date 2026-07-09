@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
+import { queryKeys } from '../lib/queryKeys';
 import {
   ArrowLeft, Loader2, Phone, MapPin, Cake, Briefcase, IndianRupee,
   Eye, EyeOff, Landmark, CheckCircle2, Clock, ScrollText, AlertTriangle,
@@ -43,51 +45,43 @@ const estimatePayout = (jw) => {
 };
 
 export default function WorkerDetail({ workerId, onNav, onBack }) {
-  const [worker,   setWorker]   = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [jobs,      setJobs]    = useState([]);
-  const [loading,   setLoading] = useState(true);
-  const [notFound,  setNotFound] = useState(false);
-  const [jobsError, setJobsError] = useState(null);
+  const queryClient = useQueryClient();
   const [revealedAccounts, setRevealedAccounts] = useState(() => new Set());
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setNotFound(false);
-    setJobsError(null);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: queryKeys.worker(workerId),
+    queryFn: async () => {
+      const [workerRes, accountsRes, jobsRes] = await Promise.all([
+        supabase.from('labourers').select('*').eq('id', workerId).single(),
+        supabase.from('labourer_bank_accounts').select('*').eq('labourer_id', workerId),
+        supabase
+          .from('job_workers')
+          .select('id, status, joined_at, started_at, completed_at, payment_status, jobs(id, job_id, title, city, status, wage_amount), worker_payouts!job_worker_id(net_amount, payment_status, paid_at)')
+          .eq('labourer_id', workerId)
+          .order('joined_at', { ascending: false }),
+      ]);
 
-    const [workerRes, accountsRes, jobsRes] = await Promise.all([
-      supabase.from('labourers').select('*').eq('id', workerId).single(),
-      supabase.from('labourer_bank_accounts').select('*').eq('labourer_id', workerId),
-      supabase
-        .from('job_workers')
-        .select('id, status, joined_at, started_at, completed_at, payment_status, jobs(id, job_id, title, city, status, wage_amount), worker_payouts!job_worker_id(net_amount, payment_status, paid_at)')
-        .eq('labourer_id', workerId)
-        .order('joined_at', { ascending: false }),
-    ]);
+      if (accountsRes.error) console.error('[labourer_bank_accounts]', accountsRes.error.message);
+      if (jobsRes.error) console.error('[job_workers]', jobsRes.error.message);
 
-    if (workerRes.error || !workerRes.data) {
-      setNotFound(true);
-    } else {
-      setWorker(workerRes.data);
-    }
+      return {
+        worker: workerRes.error ? null : workerRes.data,
+        accounts: accountsRes.data ?? [],
+        jobs: jobsRes.data ?? [],
+        jobsError: jobsRes.error?.message ?? null,
+      };
+    },
+  });
 
-    if (accountsRes.error) console.error('[labourer_bank_accounts]', accountsRes.error.message);
-    setAccounts(accountsRes.data ?? []);
-
-    if (jobsRes.error) {
-      console.error('[job_workers]', jobsRes.error.message);
-      setJobsError(jobsRes.error.message);
-    }
-    setJobs(jobsRes.data ?? []);
-    setLoading(false);
-  }, [workerId]);
-
-  useEffect(() => { load(); }, [load]);
+  const worker = data?.worker ?? null;
+  const accounts = data?.accounts ?? [];
+  const jobs = data?.jobs ?? [];
+  const jobsError = data?.jobsError ?? null;
+  const notFound = !loading && !worker;
 
   const toggleAccountReveal = (id) => {
     setRevealedAccounts(prev => {
@@ -130,7 +124,8 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
       setSaveError(error.message);
     } else {
       logActivity('worker_updated', { entityType: 'labourer', entityId: worker.labour_id ?? workerId, description: `Updated profile details for ${form.full_name}` });
-      setWorker(prev => ({ ...prev, ...payload }));
+      queryClient.setQueryData(queryKeys.worker(workerId), (prev) => prev && ({ ...prev, worker: { ...prev.worker, ...payload } }));
+      queryClient.invalidateQueries({ queryKey: queryKeys.workersApproved });
       setEditing(false);
     }
     setSaving(false);

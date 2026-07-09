@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import {
   Users,
   Building2,
@@ -19,36 +21,26 @@ const STATUS_BADGE = {
 };
 
 export default function HirersManage({ onNav }) {
-  const [hirers,  setHirers]  = useState([]);
-  const [stats,   setStats]   = useState({ total: 0, individuals: 0, companies: 0, cities: 0 });
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState('');
+  const [search, setSearch] = useState('');
 
-  const fetchHirers = useCallback(async () => {
-    setLoading(true);
+  const { data: hirers = [], isLoading: loading, refetch, isFetching } = useQuery({
+    queryKey: queryKeys.hirersActive,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('hirers')
+        .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_url, is_verified, status, created_at')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-    const { data, error } = await supabase
-      .from('hirers')
-      .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_url, is_verified, status, created_at')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setHirers(data);
-      const cities       = new Set(data.map(h => h.city).filter(Boolean));
-      const individuals  = data.filter(h => h.entity_type === 'Individual').length;
-      setStats({
-        total:       data.length,
-        individuals,
-        companies:   data.length - individuals,
-        cities:      cities.size,
-      });
-    }
-
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchHirers(); }, [fetchHirers]);
+  const stats = useMemo(() => {
+    const cities = new Set(hirers.map(h => h.city).filter(Boolean));
+    const individuals = hirers.filter(h => h.entity_type === 'Individual').length;
+    return { total: hirers.length, individuals, companies: hirers.length - individuals, cities: cities.size };
+  }, [hirers]);
 
   const filtered = hirers.filter(h => {
     if (!search.trim()) return true;
@@ -86,10 +78,10 @@ export default function HirersManage({ onNav }) {
           <p className="text-sm text-[var(--mut)] font-semibold mt-1">Overview and directory of all active hirers</p>
         </div>
         <button
-          onClick={fetchHirers}
+          onClick={() => refetch()}
           className="flex items-center gap-2 px-4 py-2 rounded-xl glass text-sm font-semibold text-[var(--mut)] hover:text-[var(--ink)] transition-colors cursor-pointer"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
           Refresh
         </button>
       </div>
