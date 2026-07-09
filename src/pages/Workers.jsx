@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
-import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, AlertTriangle } from 'lucide-react';
 
 const STATUS_BADGE = {
   pending:  'badge badge-orange',
@@ -18,7 +18,22 @@ export default function Workers() {
   const [preview,   setPreview]   = useState(null);   // worker row for photo modal
   const [rejectRow, setRejectRow] = useState(null);   // worker row for rejection modal
   const [reason,    setReason]    = useState('');
-  const [acting,    setActing]    = useState(null);   // id currently being actioned
+  const [removingIds, setRemovingIds] = useState(() => new Set()); // ids mid fade-out animation
+  const [toast,     setToast]     = useState(null);   // { type: 'success' | 'error', message }
+
+  const removalTimeouts = useRef({});
+  const toastTimeout = useRef(null);
+
+  useEffect(() => () => {
+    Object.values(removalTimeouts.current).forEach(clearTimeout);
+    clearTimeout(toastTimeout.current);
+  }, []);
+
+  const showToast = useCallback((type, message) => {
+    clearTimeout(toastTimeout.current);
+    setToast({ type, message });
+    toastTimeout.current = setTimeout(() => setToast(null), 4500);
+  }, []);
 
   const fetchWorkers = useCallback(async () => {
     setLoading(true);
@@ -36,27 +51,59 @@ export default function Workers() {
 
   useEffect(() => { fetchWorkers(); }, [fetchWorkers]);
 
+  // Optimistically fade the row out and drop it from local state, then sync
+  // the DB in the background. If the DB call fails, restore the row and
+  // swap the success card for an error card — the user never waits on a
+  // full table reload either way.
+  const removeRowOptimistically = (id) => {
+    setRemovingIds(prev => new Set(prev).add(id));
+    removalTimeouts.current[id] = setTimeout(() => {
+      setWorkers(prev => prev.filter(w => w.id !== id));
+      setRemovingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+    }, 260);
+  };
+
+  const restoreRow = (worker) => {
+    clearTimeout(removalTimeouts.current[worker.id]);
+    setRemovingIds(prev => { const n = new Set(prev); n.delete(worker.id); return n; });
+    setWorkers(prev => prev.some(w => w.id === worker.id) ? prev : [worker, ...prev]);
+  };
+
   const approve = async (worker) => {
-    setActing(worker.id);
+    removeRowOptimistically(worker.id);
+    showToast('success', `${worker.full_name} approved`);
+
     const { error } = await supabase.functions.invoke('approve-labourer', {
       body: { labourer_id: worker.id },
     });
-    if (error) console.error('[approve]', error.message);
-    else logActivity('worker_approved', { entityType: 'labourer', entityId: worker.labour_id ?? worker.id, description: `Approved worker ${worker.full_name}` });
-    setActing(null);
-    fetchWorkers();
+
+    if (error) {
+      console.error('[approve]', error.message);
+      restoreRow(worker);
+      showToast('error', `Couldn't approve ${worker.full_name} — ${error.message}`);
+    } else {
+      logActivity('worker_approved', { entityType: 'labourer', entityId: worker.labour_id ?? worker.id, description: `Approved worker ${worker.full_name}` });
+    }
   };
 
   const openReject = (worker) => { setRejectRow(worker); setReason(''); };
 
   const confirmReject = async () => {
     if (!rejectRow) return;
-    setActing(rejectRow.id);
-    await supabase.from('labourers').update({ status: 'rejected', rejection_reason: reason || null }).eq('id', rejectRow.id);
-    logActivity('worker_rejected', { entityType: 'labourer', entityId: rejectRow.labour_id ?? rejectRow.id, description: `Rejected worker ${rejectRow.full_name}${reason ? ` — ${reason}` : ''}` });
-    setActing(null);
+    const worker = rejectRow;
     setRejectRow(null);
-    fetchWorkers();
+    removeRowOptimistically(worker.id);
+    showToast('success', `${worker.full_name} rejected`);
+
+    const { error } = await supabase.from('labourers').update({ status: 'rejected', rejection_reason: reason || null }).eq('id', worker.id);
+
+    if (error) {
+      console.error('[reject]', error.message);
+      restoreRow(worker);
+      showToast('error', `Couldn't reject ${worker.full_name} — ${error.message}`);
+    } else {
+      logActivity('worker_rejected', { entityType: 'labourer', entityId: worker.labour_id ?? worker.id, description: `Rejected worker ${worker.full_name}${reason ? ` — ${reason}` : ''}` });
+    }
   };
 
   const skills = (w) => [w.skill_1, w.skill_2, w.skill_3].filter(Boolean).join(', ');
@@ -65,6 +112,8 @@ export default function Workers() {
 
   return (
     <div className="flex flex-col gap-6">
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -128,7 +177,14 @@ export default function Workers() {
               </thead>
               <tbody>
                 {workers.map(w => (
-                  <tr key={w.id}>
+                  <tr
+                    key={w.id}
+                    className="transition-all duration-[260ms] ease-out"
+                    style={removingIds.has(w.id)
+                      ? { opacity: 0, transform: 'scale(0.98) translateX(6px)' }
+                      : { opacity: 1, transform: 'none' }
+                    }
+                  >
                     {/* Name + avatar */}
                     <td>
                       <div className="flex items-center gap-3">
@@ -183,20 +239,17 @@ export default function Workers() {
                         {w.status !== 'approved' && (
                           <button
                             onClick={() => approve(w)}
-                            disabled={acting === w.id}
+                            disabled={removingIds.has(w.id)}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#E4F7EC] text-[#16B364] text-xs font-bold hover:bg-[#c8f0d8] transition-colors cursor-pointer disabled:opacity-50"
                           >
-                            {acting === w.id
-                              ? <Loader2 size={11} className="animate-spin" />
-                              : <CheckCircle size={12} strokeWidth={2.5} />
-                            }
+                            <CheckCircle size={12} strokeWidth={2.5} />
                             Approve
                           </button>
                         )}
                         {w.status !== 'rejected' && (
                           <button
                             onClick={() => openReject(w)}
-                            disabled={acting === w.id}
+                            disabled={removingIds.has(w.id)}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[rgba(201,29,94,0.08)] text-[#C91D5E] text-xs font-bold hover:bg-[rgba(201,29,94,0.15)] transition-colors cursor-pointer disabled:opacity-50"
                           >
                             <XCircle size={12} strokeWidth={2.5} />
@@ -245,9 +298,8 @@ export default function Workers() {
                 className="px-4 py-2 rounded-xl glass text-sm font-semibold text-[var(--mut)] cursor-pointer">
                 Cancel
               </button>
-              <button onClick={confirmReject} disabled={acting === rejectRow.id}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[rgba(201,29,94,0.9)] text-white text-sm font-bold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50">
-                {acting === rejectRow.id && <Loader2 size={13} className="animate-spin" />}
+              <button onClick={confirmReject}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[rgba(201,29,94,0.9)] text-white text-sm font-bold cursor-pointer hover:opacity-90 transition-opacity">
                 Confirm Reject
               </button>
             </div>
@@ -255,6 +307,44 @@ export default function Workers() {
         </Modal>
       )}
 
+    </div>
+  );
+}
+
+function Toast({ toast, onClose }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (!toast) { setMounted(false); return; }
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, [toast]);
+
+  if (!toast) return null;
+
+  const isError = toast.type === 'error';
+
+  return (
+    <div
+      className="fixed top-6 left-1/2 z-[100] flex items-center gap-3 rounded-2xl px-4 py-3 glass-card shadow-lg transition-all duration-200 ease-out max-w-md"
+      style={{
+        transform: `translateX(-50%) translateY(${mounted ? '0' : '-12px'})`,
+        opacity: mounted ? 1 : 0,
+      }}
+    >
+      <div
+        className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: isError ? 'rgba(201,29,94,0.12)' : 'var(--green-soft)' }}
+      >
+        {isError
+          ? <AlertTriangle size={15} className="text-[#C91D5E]" />
+          : <CheckCircle size={15} className="text-[#16B364]" />
+        }
+      </div>
+      <p className="text-sm font-semibold text-[var(--ink)] leading-snug">{toast.message}</p>
+      <button onClick={onClose} className="text-[var(--mut)] hover:text-[var(--ink)] cursor-pointer flex-shrink-0">
+        <X size={14} />
+      </button>
     </div>
   );
 }
