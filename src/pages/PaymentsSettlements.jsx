@@ -105,10 +105,15 @@ export default function PaymentsSettlements() {
   const [refundReason, setRefundReason] = useState('');
   const [acting, setActing] = useState(false);
 
+  // Complete-payment dialog (mark initiated payouts as paid). Each worker has
+  // its own method / transaction reference / paid_at / remarks.
+  const [completeDialog, setCompleteDialog] = useState(null); // { job, workers } | null
+  const [payDetails, setPayDetails] = useState({}); // jobWorkerId -> { method, txnRef, paidAt, remarks }
+
   const { data, isLoading: loading, refetch } = useQuery({
     queryKey: queryKeys.settlementsBundle,
     queryFn: async () => {
-      const [jobsRes, jwRes, payoutsRes, refundsRes, paymentsRes, attendanceRes] = await Promise.all([
+      const [jobsRes, jwRes, payoutsRes, refundsRes, paymentsRes, attendanceRes, bankAccountsRes] = await Promise.all([
         supabase
           .from('jobs')
           .select('id, job_id, title, city, status, workers_required, escrow_amount, escrow_status, payment_status, actual_total_amount, refunded_amount, wage_amount, created_at, hirer_id, hirers(first_name,last_name,company_name)')
@@ -137,6 +142,10 @@ export default function PaymentsSettlements() {
           .from('attendance')
           .select('id, job_worker_id, status, attendance_date')
           .limit(FETCH_LIMIT * 5),
+        supabase
+          .from('labourer_bank_accounts')
+          .select('labourer_id, account_holder_name, account_number, ifsc_code, bank_name, upi_id, is_verified')
+          .limit(FETCH_LIMIT * 4),
       ]);
 
       if (jobsRes.error)     console.error('[jobs]', jobsRes.error.message);
@@ -145,6 +154,7 @@ export default function PaymentsSettlements() {
       if (refundsRes.error)  console.error('[refunds]', refundsRes.error.message);
       if (paymentsRes.error) console.error('[payments]', paymentsRes.error.message);
       if (attendanceRes.error) console.error('[attendance]', attendanceRes.error.message);
+      if (bankAccountsRes.error) console.error('[labourer_bank_accounts]', bankAccountsRes.error.message);
 
       return {
         jobs: jobsRes.data ?? [],
@@ -153,17 +163,30 @@ export default function PaymentsSettlements() {
         refunds: refundsRes.data ?? [],
         payments: paymentsRes.data ?? [],
         attendance: attendanceRes.data ?? [],
+        bankAccounts: bankAccountsRes.data ?? [],
       };
     },
   });
 
-  const jobs       = data?.jobs ?? [];
-  const jobWorkers = data?.jobWorkers ?? [];
-  const payouts    = data?.payouts ?? [];
-  const refunds    = data?.refunds ?? [];
-  const payments   = data?.payments ?? [];
-  const attendance = data?.attendance ?? [];
+  const jobs         = data?.jobs ?? [];
+  const jobWorkers   = data?.jobWorkers ?? [];
+  const payouts      = data?.payouts ?? [];
+  const refunds      = data?.refunds ?? [];
+  const payments     = data?.payments ?? [];
+  const attendance   = data?.attendance ?? [];
+  const bankAccounts = data?.bankAccounts ?? [];
   const load = () => refetch();
+
+  // Best bank account per labourer (prefer a verified one) for payout details.
+  const bankByLabourerId = useMemo(() => {
+    const map = {};
+    for (const a of bankAccounts) {
+      if (!a.labourer_id) continue;
+      const cur = map[a.labourer_id];
+      if (!cur || (a.is_verified && !cur.is_verified)) map[a.labourer_id] = a;
+    }
+    return map;
+  }, [bankAccounts]);
 
   // reset filters when switching tabs so a stale status filter doesn't hide everything
   useEffect(() => { setStatusFilter('all'); setSearch(''); setJobFilter('all'); }, [tab]);
@@ -196,28 +219,27 @@ export default function PaymentsSettlements() {
   const queueRows = useMemo(() => jobs.map(job => {
     const workers = (jobWorkersByJobId[job.id] ?? []).filter(w => w.status !== 'cancelled');
     const workersWorked = workers.filter(w => w.status === 'completed').length;
-    const workerPayouts = workers.map(w => w.payout_id ? payoutsById[w.payout_id] : null);
+    const wage = Number(job.wage_amount) || 0;
 
-    // Calculate dynamic escrow based on days and attendance
-    let calculatedEscrow = 0;
-    workers.forEach(w => {
-      const workerAttendance = attendanceByWorkerId[w.id] ?? [];
+    // Per-worker attendance days + linked payout.
+    const perWorker = workers.map(w => {
+      const att = attendanceByWorkerId[w.id] ?? [];
       let days = 0;
-      workerAttendance.forEach(a => {
+      att.forEach(a => {
         if (a.status === 'present') days += 1;
         else if (a.status === 'half_day') days += 0.5;
       });
-      calculatedEscrow += days * (Number(job.wage_amount) || 0);
+      return { days, payout: w.payout_id ? payoutsById[w.payout_id] : null };
     });
 
+    const calculatedEscrow = perWorker.reduce((s, x) => s + x.days * wage, 0);
     const displayEscrow = calculatedEscrow > 0 ? calculatedEscrow : (Number(job.escrow_amount) || 0);
 
-    // Dynamic calculations
-    const paidAmount = workerPayouts.reduce((s, p) => s + (p?.payment_status === 'paid' ? Number(p.net_amount || 0) : 0), 0);
-    const pendingWorkerCount = workers.filter((w, i) => {
-      const p = workerPayouts[i];
-      return !p || ['pending', 'processing'].includes(p.payment_status);
-    }).length;
+    // Only workers who actually attended (days > 0) are owed a payout, so
+    // absentees (who get no payout) don't keep the job stuck as pending.
+    const payable = perWorker.filter(x => x.days > 0);
+    const paidAmount = perWorker.reduce((s, x) => s + (x.payout?.payment_status === 'paid' ? Number(x.payout.net_amount || 0) : 0), 0);
+    const pendingWorkerCount = payable.filter(x => !x.payout || ['pending', 'processing'].includes(x.payout.payment_status)).length;
 
     const jobRefunds = refundsByJobId[job.id] ?? [];
     const refundTotal = jobRefunds.reduce((s, r) => s + Number(r.refund_amount || 0), 0);
@@ -225,14 +247,18 @@ export default function PaymentsSettlements() {
 
     let status;
     if (job.status !== 'completed') status = 'awaiting_completion';
-    else if (workers.length > 0 && workerPayouts.every(p => !p)) status = 'ready_for_settlement';
+    else if (payable.length > 0 && payable.every(x => !x.payout)) status = 'ready_for_settlement';
     else if (pendingWorkerCount > 0) status = 'worker_payments_pending';
     else if (refundPending) status = 'refund_pending';
     else status = 'completed';
 
+    // True once payments have been initiated (payouts exist and are still
+    // processing) — the "Complete Payment" state.
+    const hasProcessingPayouts = perWorker.some(x => x.payout?.payment_status === 'processing');
+
     return {
       job, workers, workersWorked, paidAmount, pendingWorkerCount,
-      refundTotal, refundPending, status, displayEscrow,
+      refundTotal, refundPending, status, displayEscrow, hasProcessingPayouts,
     };
   }), [jobs, jobWorkersByJobId, payoutsById, refundsByJobId, paymentsByJobId, attendanceByWorkerId]);
 
@@ -388,6 +414,114 @@ export default function PaymentsSettlements() {
     const job = jobsById[jobId];
     logActivity('workers_paid', { entityType: 'job', entityId: job?.job_id ?? jobId, description: `Marked worker payouts as paid for job ${job?.job_id ?? jobId}` });
     setActing(false);
+    load();
+    queryClient.invalidateQueries({ queryKey: queryKeys.job(jobId) });
+    queryClient.invalidateQueries({ queryKey: ['labourers', 'detail'] });
+  };
+
+  // Initiate payment: for each non-cancelled worker without a payout yet,
+  // create a worker_payouts row (status 'processing') and flip the
+  // job_workers.payment_status to 'initiated'. Amounts follow the same
+  // attendance × wage logic used for the escrow calculation.
+  const initiatePayment = async (jobId) => {
+    setActing(true);
+    const job = jobsById[jobId];
+    const wage = Number(job?.wage_amount) || 0;
+    const workers = (jobWorkersByJobId[jobId] ?? []).filter(w => w.status !== 'cancelled' && !w.payout_id);
+
+    await Promise.all(workers.map(async (w, i) => {
+      const att = attendanceByWorkerId[w.id] ?? [];
+      let present = 0, half = 0, absent = 0;
+      att.forEach(a => {
+        if (a.status === 'present') present += 1;
+        else if (a.status === 'half_day') half += 1;
+        else if (a.status === 'absent') absent += 1;
+      });
+      const gross = present * wage + half * 0.5 * wage;
+      if (gross <= 0) return; // skip workers who didn't attend — no payout
+      const net = gross;
+      // Index guarantees uniqueness within this batch even if Date.now() is
+      // identical for parallel inserts.
+      const payoutId = `PO-${Date.now()}-${i}-${String(w.id).slice(0, 8)}`;
+
+      const { data: inserted, error } = await supabase
+        .from('worker_payouts')
+        .insert({
+          payout_id: payoutId,
+          job_worker_id: w.id,
+          attendance_days: present,
+          half_days: half,
+          absent_days: absent,
+          gross_amount: gross,
+          net_amount: net,
+          payment_status: 'processing',
+        })
+        .select('id')
+        .single();
+      if (error) { console.error('[worker_payouts insert]', error.message); return; }
+
+      await supabase
+        .from('job_workers')
+        .update({ payment_status: 'initiated', payout_id: inserted.id })
+        .eq('id', w.id);
+    }));
+
+    logActivity('payment_initiated', { entityType: 'job', entityId: job?.job_id ?? jobId, description: `Initiated worker payments for job ${job?.job_id ?? jobId}` });
+    setActing(false);
+    load();
+    queryClient.invalidateQueries({ queryKey: queryKeys.job(jobId) });
+  };
+
+  const openCompleteDialog = (job) => {
+    // Build the roster of workers whose payouts are still processing — each
+    // gets its own method / reference / paid_at / remarks.
+    const workers = (jobWorkersByJobId[job.id] ?? [])
+      .filter(w => w.status !== 'cancelled' && w.payout_id && payoutsById[w.payout_id]?.payment_status === 'processing')
+      .map(w => ({
+        jobWorkerId: w.id,
+        payoutId: w.payout_id,
+        name: w.labourers?.full_name ?? '—',
+        amount: payoutsById[w.payout_id]?.net_amount ?? 0,
+      }));
+    const now = new Date();
+    const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setPayDetails(Object.fromEntries(
+      workers.map(w => [w.jobWorkerId, { method: 'UPI', txnRef: '', paidAt: localNow, remarks: '' }])
+    ));
+    setCompleteDialog({ job, workers });
+  };
+
+  const setDetail = (jwId, field, value) =>
+    setPayDetails(prev => ({ ...prev, [jwId]: { ...(prev[jwId] ?? {}), [field]: value } }));
+
+  // Complete payment: mark each initiated (processing) payout as paid using that
+  // worker's own method / reference / paid_at / remarks, and flip
+  // job_workers.payment_status to 'paid'.
+  const completePayment = async () => {
+    if (!completeDialog?.job) return;
+    setActing(true);
+    const jobId = completeDialog.job.id;
+    const workers = completeDialog.workers ?? [];
+
+    await Promise.all(workers.map(async (w) => {
+      const d = payDetails[w.jobWorkerId] ?? {};
+      const method = d.method || 'UPI';
+      const paidAtIso = d.paidAt ? new Date(d.paidAt).toISOString() : new Date().toISOString();
+      const remarks = d.remarks?.trim() ? `${method} — ${d.remarks.trim()}` : method;
+      const txnRef = d.txnRef?.trim() || null;
+      await supabase.from('worker_payouts').update({
+        payment_status: 'paid',
+        paid_at: paidAtIso,
+        transaction_reference: txnRef,
+        remarks,
+      }).eq('id', w.payoutId);
+      await supabase.from('job_workers').update({ payment_status: 'paid' }).eq('id', w.jobWorkerId);
+    }));
+
+    const job = jobsById[jobId];
+    logActivity('payment_completed', { entityType: 'job', entityId: job?.job_id ?? jobId, description: `Completed worker payments for job ${job?.job_id ?? jobId}` });
+    setActing(false);
+    setCompleteDialog(null);
     load();
     queryClient.invalidateQueries({ queryKey: queryKeys.job(jobId) });
     queryClient.invalidateQueries({ queryKey: ['labourers', 'detail'] });
@@ -888,10 +1022,30 @@ export default function PaymentsSettlements() {
                     ) : sheetRow.workers.map(w => {
                       const payout = w.payout_id ? payoutsById[w.payout_id] : null;
                       const status = payout?.payment_status ?? w.payment_status ?? 'pending';
+                      const bank = bankByLabourerId[w.labourer_id];
                       return (
-                        <div key={w.id} className="flex items-center justify-between rounded-xl glass px-3 py-2">
-                          <span className="text-sm font-semibold text-[var(--ink)]">{w.labourers?.full_name ?? '—'}</span>
-                          <div className="flex items-center gap-2">
+                        <div key={w.id} className="flex items-start justify-between rounded-xl glass px-3 py-2 gap-2">
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="text-sm font-semibold text-[var(--ink)] truncate">{w.labourers?.full_name ?? '—'}</span>
+                            {bank ? (
+                              <>
+                                {bank.account_number && (
+                                  <span className="text-[11px] text-[var(--mut)] font-medium break-all">
+                                    {bank.bank_name ? `${bank.bank_name} · ` : ''}A/C {bank.account_number}{bank.ifsc_code ? ` · ${bank.ifsc_code}` : ''}
+                                  </span>
+                                )}
+                                {bank.upi_id && (
+                                  <span className="text-[11px] text-[var(--mut)] font-medium break-all">UPI: {bank.upi_id}</span>
+                                )}
+                                {!bank.account_number && !bank.upi_id && (
+                                  <span className="text-[11px] text-[var(--mut)]/70 font-medium italic">No payout details</span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-[11px] text-[var(--mut)]/70 font-medium italic">No bank details</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
                             <span className="text-xs font-bold text-[var(--mut)]">{payout ? fmtMoney(payout.net_amount) : '—'}</span>
                             <StatusBadge status={status} />
                           </div>
@@ -915,15 +1069,27 @@ export default function PaymentsSettlements() {
               </div>
 
               <SheetFooter className="border-t border-[var(--divider)] flex-row flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  disabled={acting || sheetRow.pendingWorkerCount === 0}
-                  onClick={() => payWorkers(sheetRow.job.id)}
-                  className="gap-1.5 rounded-lg bg-[var(--green-soft)] text-[var(--green)] hover:bg-[#c8f0d8] shadow-none flex-1"
-                >
-                  {acting ? <Loader2 size={13} className="animate-spin" /> : <Wallet size={13} />}
-                  Pay Workers
-                </Button>
+                {sheetRow.hasProcessingPayouts ? (
+                  <Button
+                    size="sm"
+                    disabled={acting}
+                    onClick={() => openCompleteDialog(sheetRow.job)}
+                    className="gap-1.5 rounded-lg bg-[var(--green-soft)] text-[var(--green)] hover:bg-[#c8f0d8] shadow-none flex-1"
+                  >
+                    {acting ? <Loader2 size={13} className="animate-spin" /> : <Wallet size={13} />}
+                    Complete Payment
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={acting || sheetRow.status !== 'ready_for_settlement'}
+                    onClick={() => initiatePayment(sheetRow.job.id)}
+                    className="gap-1.5 rounded-lg bg-[var(--green-soft)] text-[var(--green)] hover:bg-[#c8f0d8] shadow-none flex-1"
+                  >
+                    {acting ? <Loader2 size={13} className="animate-spin" /> : <Wallet size={13} />}
+                    Initiate Payment
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   onClick={() => setRefundDialog({ job: sheetRow.job })}
@@ -938,15 +1104,6 @@ export default function PaymentsSettlements() {
                   className="gap-1.5 rounded-lg glass text-[var(--mut)] hover:text-[var(--ink)] flex-1"
                 >
                   <Printer size={13} /> Download Invoice
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={acting || sheetRow.status !== 'completed'}
-                  onClick={() => closeSettlement(sheetRow.job.id)}
-                  className="gap-1.5 rounded-lg glass text-[var(--mut)] hover:text-[var(--ink)] flex-1"
-                >
-                  <CheckCircle2 size={13} /> Close Settlement
                 </Button>
               </SheetFooter>
             </>
@@ -1004,6 +1161,85 @@ export default function PaymentsSettlements() {
               style={{ background: 'var(--grad)', color: '#fff' }}
             >
               {acting ? <Loader2 size={14} className="animate-spin" /> : 'Submit Refund'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Payment dialog */}
+      <Dialog open={!!completeDialog} onOpenChange={(open) => !open && setCompleteDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete Payment</DialogTitle>
+            <DialogDescription>
+              {completeDialog?.job ? `For ${completeDialog.job.job_id} · ${hirerName(completeDialog.job.hirers)}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3 max-h-[440px] overflow-y-auto pr-0.5">
+            {(completeDialog?.workers ?? []).map(w => {
+              const d = payDetails[w.jobWorkerId] ?? {};
+              return (
+                <div key={w.jobWorkerId} className="rounded-xl border border-[var(--divider)] p-3 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-[var(--ink)] truncate">{w.name}</span>
+                    <span className="text-sm font-semibold text-[var(--mut)] shrink-0">{fmtMoney(w.amount)}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--mut)]">Method</label>
+                      <select
+                        value={d.method ?? 'UPI'}
+                        onChange={e => setDetail(w.jobWorkerId, 'method', e.target.value)}
+                        className="h-9 rounded-lg border border-[var(--input-border)] bg-white/80 px-2.5 text-sm font-medium text-[var(--ink)] outline-none"
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="IMPS">IMPS</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--mut)]">Paid At</label>
+                      <Input
+                        type="datetime-local"
+                        value={d.paidAt ?? ''}
+                        onChange={e => setDetail(w.jobWorkerId, 'paidAt', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--mut)]">Transaction Reference</label>
+                    <Input
+                      value={d.txnRef ?? ''}
+                      onChange={e => setDetail(w.jobWorkerId, 'txnRef', e.target.value)}
+                      placeholder="UTR / transaction id"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--mut)]">Remarks</label>
+                    <Input
+                      value={d.remarks ?? ''}
+                      onChange={e => setDetail(w.jobWorkerId, 'remarks', e.target.value)}
+                      placeholder="Optional note…"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompleteDialog(null)}>Cancel</Button>
+            <Button
+              disabled={
+                acting ||
+                !completeDialog?.job ||
+                (completeDialog.workers ?? []).length === 0 ||
+                (completeDialog.workers ?? []).some(w => !((payDetails[w.jobWorkerId]?.txnRef) ?? '').trim())
+              }
+              onClick={completePayment}
+              style={{ background: 'var(--grad)', color: '#fff' }}
+            >
+              {acting ? <Loader2 size={14} className="animate-spin" /> : 'Mark all as Paid'}
             </Button>
           </DialogFooter>
         </DialogContent>

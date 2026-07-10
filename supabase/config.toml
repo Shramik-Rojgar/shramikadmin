@@ -355,6 +355,11 @@ allow_dynamic_registration = false
 [functions.razorpay-webhook]
 verify_jwt = false
 
+# Public sign-up endpoint — called before the hirer has an account/session, so
+# there's no JWT to verify. Protected by input validation + unique constraints.
+[functions.hirer-signup]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
