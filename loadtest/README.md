@@ -43,9 +43,12 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node loadtest/teardown.js
 
 | `SCENARIO` | Query | Why |
 |---|---|---|
-| `current` (default) | `select=*&order=created_at.desc` | Verbatim `worker_browse_jobs_screen.dart:167`. No filter, no limit. |
+| `current` (default) | `select=*&order=created_at.desc` | The OLD browse-jobs query — no filter, no limit. Baseline. |
 | `provider` | adds `hirers(...)` join, `status=eq.active` | Verbatim `cache_provider.dart:57`. |
-| `paginated` | status + bounding box + `limit=20` | What it should be. |
+| `shipped` | `status=neq.ongoing` + `limit=20` | What browse-jobs ships now. The real before/after vs `current`. |
+| `paginated` | explicit columns + bounding box + `limit=20` | The distance follow-up (PostGIS). Extra headroom over `shipped`. |
+
+Run `current` then `shipped` back to back — that pair is the fix, measured.
 
 ## Reading the result
 

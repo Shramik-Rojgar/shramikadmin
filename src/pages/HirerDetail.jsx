@@ -58,8 +58,8 @@ export default function HirerDetail({ hirerId, onNav, onBack }) {
   const jobsError = data?.jobsError ?? null;
   const notFound = !loading && !hirer;
 
-  // The bucket is private: aadhar_url holds a storage path, not a URL.
-  const { url: aadhaarUrl } = useSignedUrl(hirer?.aadhar_url);
+  // The bucket is private: exchange the stored path for a signed URL.
+  const { url: aadhaarUrl } = useSignedUrl(hirer?.aadhar_path);
 
   const toggleAccountReveal = (id) => {
     setRevealedAccounts(prev => {

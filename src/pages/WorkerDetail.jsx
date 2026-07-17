@@ -85,8 +85,8 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
   const notFound = !loading && !worker;
 
   // The bucket is private: these columns hold storage paths, not URLs.
-  const { url: photoUrl } = useSignedUrl(worker?.photo_url);
-  const { url: govIdUrl } = useSignedUrl(worker?.government_id_url);
+  const { url: photoUrl } = useSignedUrl(worker?.photo_path);
+  const { url: govIdUrl } = useSignedUrl(worker?.government_id_path);
 
   const toggleAccountReveal = (id) => {
     setRevealedAccounts(prev => {

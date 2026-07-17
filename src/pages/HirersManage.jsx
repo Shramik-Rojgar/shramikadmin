@@ -29,7 +29,7 @@ export default function HirersManage({ onNav }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('hirers')
-        .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_url, is_verified, status, created_at')
+        .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_path, is_verified, status, created_at')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -37,8 +37,8 @@ export default function HirersManage({ onNav }) {
     },
   });
 
-  // The bucket is private: aadhar_url holds a storage path, not a URL.
-  const signedUrls = useSignedUrlMap(hirers.map(h => h.aadhar_url));
+  // The bucket is private: exchange the stored path for a signed URL.
+  const signedUrls = useSignedUrlMap(hirers.map(h => h.aadhar_path));
 
   const stats = useMemo(() => {
     const cities = new Set(hirers.map(h => h.city).filter(Boolean));
@@ -194,8 +194,8 @@ export default function HirersManage({ onNav }) {
                       <span className={STATUS_BADGE[h.status] ?? 'badge badge-gray'}>{h.status}</span>
                     </td>
                     <td>
-                      {signedUrls[h.aadhar_url]
-                        ? <a href={signedUrls[h.aadhar_url]} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                      {signedUrls[h.aadhar_path]
+                        ? <a href={signedUrls[h.aadhar_path]} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View
                           </a>

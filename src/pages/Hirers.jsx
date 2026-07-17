@@ -42,7 +42,7 @@ export default function Hirers() {
     queryFn: async () => {
       let q = supabase
         .from('hirers')
-        .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_url, is_verified, status, rejection_reason, created_at')
+        .select('id, hirer_id, first_name, last_name, mobile_no, email, entity_type, company_name, gst_number, city, state, aadhar_path, is_verified, status, rejection_reason, created_at')
         .order('created_at', { ascending: false });
       if (filter !== 'all') q = q.eq('status', filter);
       const { data, error } = await q;
@@ -51,8 +51,8 @@ export default function Hirers() {
     },
   });
 
-  // The bucket is private: aadhar_url holds a storage path, not a URL.
-  const signedUrls = useSignedUrlMap(hirers.map(h => h.aadhar_url));
+  // The bucket is private: exchange the stored path for a signed URL.
+  const signedUrls = useSignedUrlMap(hirers.map(h => h.aadhar_path));
 
   // Optimistically fade the row out and drop it from the cached query data,
   // then sync the DB in the background. If the DB call fails, restore the
@@ -235,8 +235,8 @@ export default function Hirers() {
                     </td>
                     {/* Aadhaar link — only for Individual */}
                     <td>
-                      {signedUrls[h.aadhar_url]
-                        ? <a href={signedUrls[h.aadhar_url]} target="_blank" rel="noreferrer"
+                      {signedUrls[h.aadhar_path]
+                        ? <a href={signedUrls[h.aadhar_path]} target="_blank" rel="noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View
                           </a>

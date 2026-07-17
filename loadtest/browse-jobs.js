@@ -62,16 +62,24 @@ export const options = {
 };
 
 const QUERIES = {
-  // Verbatim what the app does today.
+  // The OLD query — whole table, every column, no limit. What browse-jobs did
+  // before the fix. Kept as the baseline to measure against.
   current: '/rest/v1/jobs?select=*&order=created_at.desc',
 
   // What jobsListProvider does (cache_provider.dart:57) — adds the hirers join.
   provider: '/rest/v1/jobs?select=*,hirers(company_name,contact_name)&status=eq.active&order=created_at.desc',
 
-  // What it should be: status filtered, bounding-boxed to ~10km around
-  // Gurugram, keyset paginated. Run this to see the delta.
-  paginated: '/rest/v1/jobs?select=id,title,city,latitude,longitude,daily_wage,created_at' +
-    '&status=eq.active' +
+  // What worker_browse_jobs_screen.dart SHIPS now: status filtered server-side,
+  // one keyset page of _pageSize. This is the real before/after against
+  // `current`. (Column set is still select() — trimming to explicit columns is
+  // the follow-up once the jobs schema is in git.)
+  shipped: '/rest/v1/jobs?select=*&status=neq.ongoing&order=created_at.desc&limit=20',
+
+  // The aspiration: explicit columns + PostGIS-style distance filter (here a
+  // bounding box around Gurugram) + keyset page. Where the distance follow-up
+  // lands. Run this to see the additional headroom over `shipped`.
+  paginated: '/rest/v1/jobs?select=id,title,city,latitude,longitude,wage_amount,created_at' +
+    '&status=neq.ongoing' +
     '&latitude=gte.28.37&latitude=lte.28.55' +
     '&longitude=gte.76.93&longitude=lte.77.12' +
     '&order=created_at.desc&limit=20',

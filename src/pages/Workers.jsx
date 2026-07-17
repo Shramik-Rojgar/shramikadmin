@@ -43,7 +43,7 @@ export default function Workers() {
     queryFn: async () => {
       let q = supabase
         .from('labourers')
-        .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, photo_url, government_id_url, status, rejection_reason, created_at')
+        .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, photo_path, government_id_path, status, rejection_reason, created_at')
         .order('created_at', { ascending: false });
       if (filter !== 'all') q = q.eq('status', filter);
       const { data, error } = await q;
@@ -52,10 +52,10 @@ export default function Workers() {
     },
   });
 
-  // The bucket is private: these columns hold storage paths, not URLs. One
-  // signed URL per distinct path, shared by the table cells and the modal.
+  // The bucket is private: one signed URL per distinct path, shared by the
+  // table cells and the modal.
   const signedUrls = useSignedUrlMap(
-    workers.flatMap(w => [w.photo_url, w.government_id_url]),
+    workers.flatMap(w => [w.photo_path, w.government_id_path]),
   );
 
   // Optimistically fade the row out and drop it from the cached query data,
@@ -201,11 +201,11 @@ export default function Workers() {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-slate-100 border border-[var(--divider)] cursor-pointer"
-                          onClick={() => w.photo_url && setPreview(w)}
+                          onClick={() => w.photo_path && setPreview(w)}
                           title="View photo"
                         >
-                          {signedUrls[w.photo_url]
-                            ? <img src={signedUrls[w.photo_url]} className="w-full h-full object-cover" alt={w.full_name} />
+                          {signedUrls[w.photo_path]
+                            ? <img src={signedUrls[w.photo_path]} className="w-full h-full object-cover" alt={w.full_name} />
                             : <div className="w-full h-full flex items-center justify-center text-xs font-black text-[var(--mut)]">
                                 {w.full_name?.[0]?.toUpperCase() ?? '?'}
                               </div>
@@ -237,8 +237,8 @@ export default function Workers() {
 
                     {/* Govt ID link */}
                     <td>
-                      {signedUrls[w.government_id_url]
-                        ? <a href={signedUrls[w.government_id_url]} target="_blank" rel="noreferrer"
+                      {signedUrls[w.government_id_path]
+                        ? <a href={signedUrls[w.government_id_path]} target="_blank" rel="noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View ID
                           </a>
@@ -283,7 +283,7 @@ export default function Workers() {
       {preview && (
         <Modal onClose={() => setPreview(null)}>
           <div className="flex flex-col items-center gap-4">
-            <img src={signedUrls[preview.photo_url]} alt={preview.full_name}
+            <img src={signedUrls[preview.photo_path]} alt={preview.full_name}
               className="w-48 h-48 rounded-2xl object-cover border border-[var(--divider)]" />
             <p className="font-display font-bold text-lg text-[var(--ink)]">{preview.full_name}</p>
             <p className="text-sm text-[var(--mut)] font-semibold">{preview.mobile_no}</p>

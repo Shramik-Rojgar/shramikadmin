@@ -31,7 +31,7 @@ export default function WorkersManage({ onNav }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('labourers')
-        .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, city, state, photo_url, government_id_url, status, created_at')
+        .select('id, labour_id, full_name, mobile_no, date_of_birth, gender, skill_1, skill_2, skill_3, experience_level, daily_wage, city, state, photo_path, government_id_path, status, created_at')
         .eq('status', 'approved')
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -39,8 +39,8 @@ export default function WorkersManage({ onNav }) {
     },
   });
 
-  // The bucket is private: photo_url holds a storage path, not a URL.
-  const signedUrls = useSignedUrlMap(workers.map(w => w.photo_url));
+  // The bucket is private: exchange stored paths for short-lived signed URLs.
+  const signedUrls = useSignedUrlMap(workers.map(w => w.photo_path));
 
   const stats = useMemo(() => {
     const cities = new Set(workers.map(w => w.city).filter(Boolean));
@@ -173,11 +173,11 @@ export default function WorkersManage({ onNav }) {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-slate-100 border border-[var(--divider)] cursor-pointer"
-                          onClick={(e) => { e.stopPropagation(); w.photo_url && setPreview(w); }}
+                          onClick={(e) => { e.stopPropagation(); w.photo_path && setPreview(w); }}
                           title="View photo"
                         >
-                          {signedUrls[w.photo_url]
-                            ? <img src={signedUrls[w.photo_url]} className="w-full h-full object-cover" alt={w.full_name} />
+                          {signedUrls[w.photo_path]
+                            ? <img src={signedUrls[w.photo_path]} className="w-full h-full object-cover" alt={w.full_name} />
                             : <div className="w-full h-full flex items-center justify-center text-xs font-black text-[var(--mut)]">
                               {w.full_name?.[0]?.toUpperCase() ?? '?'}
                             </div>
@@ -214,7 +214,7 @@ export default function WorkersManage({ onNav }) {
       {preview && (
         <Modal onClose={() => setPreview(null)}>
           <div className="flex flex-col items-center gap-4">
-            <img src={signedUrls[preview.photo_url]} alt={preview.full_name}
+            <img src={signedUrls[preview.photo_path]} alt={preview.full_name}
               className="w-48 h-48 rounded-2xl object-cover border border-[var(--divider)]" />
             <p className="font-display font-bold text-lg text-[var(--ink)]">{preview.full_name}</p>
             <p className="text-sm text-[var(--mut)] font-semibold">{preview.mobile_no}</p>

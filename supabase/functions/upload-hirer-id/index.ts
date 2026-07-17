@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
 
     const { data: hirer } = await supabaseAdmin
       .from('hirers')
-      .select('id, mobile_no, aadhar_url')
+      .select('id, mobile_no, aadhar_path')
       .eq('auth_user_id', userData.user.id)
       .maybeSingle();
     if (!hirer) {
@@ -126,18 +126,18 @@ Deno.serve(async (req) => {
     // Re-uploads get a fresh UUID, so drop the object the old path pointed at
     // rather than leaving an orphaned Aadhaar in the bucket forever. Best
     // effort: a failure here must not fail the upload the hirer just made.
-    const previousPath = String(hirer.aadhar_url ?? '');
+    const previousPath = String(hirer.aadhar_path ?? '');
     if (previousPath && !previousPath.startsWith('http')) {
       const { error: rmErr } = await supabaseAdmin.storage.from(BUCKET).remove([previousPath]);
       if (rmErr) console.error('stale ID cleanup failed:', previousPath, rmErr.message);
     }
 
-    // Write the ID URL AND the rest of the onboarding profile with the service
+    // Write the ID path AND the rest of the onboarding profile with the service
     // role. These fields didn't persist before because the client's UPDATE on
     // hirers is blocked by RLS (0 rows updated, no error).
     const p = (profile && typeof profile === 'object') ? profile as Record<string, unknown> : {};
     const update: Record<string, unknown> = {
-      aadhar_url: path,
+      aadhar_path: path,
       completion_status: 'completed',
     };
     const ALLOWED_ENTITY = ['Individual', 'Contractor', 'Builder', 'Company'];
@@ -158,7 +158,10 @@ Deno.serve(async (req) => {
       return json({ error: 'Uploaded, but could not save your details' }, 500);
     }
 
-    return json({ success: true, path, url: publicUrl });
+    // No URL to hand back: the bucket is private, and a signed URL minted here
+    // would be stale before the client could use it. Callers that need to
+    // display the file sign the stored path themselves.
+    return json({ success: true, path });
   } catch (err) {
     console.error('upload-hirer-id error:', err?.message ?? err);
     return json({ error: 'Unexpected server error' }, 500);
