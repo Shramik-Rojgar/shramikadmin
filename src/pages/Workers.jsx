@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
 import { queryKeys } from '../lib/queryKeys';
+import { useSignedUrlMap } from '../lib/storage';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, AlertTriangle } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -50,6 +51,12 @@ export default function Workers() {
       return data ?? [];
     },
   });
+
+  // The bucket is private: these columns hold storage paths, not URLs. One
+  // signed URL per distinct path, shared by the table cells and the modal.
+  const signedUrls = useSignedUrlMap(
+    workers.flatMap(w => [w.photo_url, w.government_id_url]),
+  );
 
   // Optimistically fade the row out and drop it from the cached query data,
   // then sync the DB in the background. If the DB call fails, restore the
@@ -197,8 +204,8 @@ export default function Workers() {
                           onClick={() => w.photo_url && setPreview(w)}
                           title="View photo"
                         >
-                          {w.photo_url
-                            ? <img src={w.photo_url} className="w-full h-full object-cover" alt={w.full_name} />
+                          {signedUrls[w.photo_url]
+                            ? <img src={signedUrls[w.photo_url]} className="w-full h-full object-cover" alt={w.full_name} />
                             : <div className="w-full h-full flex items-center justify-center text-xs font-black text-[var(--mut)]">
                                 {w.full_name?.[0]?.toUpperCase() ?? '?'}
                               </div>
@@ -230,8 +237,8 @@ export default function Workers() {
 
                     {/* Govt ID link */}
                     <td>
-                      {w.government_id_url
-                        ? <a href={w.government_id_url} target="_blank" rel="noreferrer"
+                      {signedUrls[w.government_id_url]
+                        ? <a href={signedUrls[w.government_id_url]} target="_blank" rel="noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View ID
                           </a>
@@ -276,7 +283,7 @@ export default function Workers() {
       {preview && (
         <Modal onClose={() => setPreview(null)}>
           <div className="flex flex-col items-center gap-4">
-            <img src={preview.photo_url} alt={preview.full_name}
+            <img src={signedUrls[preview.photo_url]} alt={preview.full_name}
               className="w-48 h-48 rounded-2xl object-cover border border-[var(--divider)]" />
             <p className="font-display font-bold text-lg text-[var(--ink)]">{preview.full_name}</p>
             <p className="text-sm text-[var(--mut)] font-semibold">{preview.mobile_no}</p>

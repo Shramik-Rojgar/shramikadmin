@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
+import { useSignedUrlMap } from '../lib/storage';
 import {
   Users,
   Building2,
@@ -35,6 +36,9 @@ export default function HirersManage({ onNav }) {
       return data ?? [];
     },
   });
+
+  // The bucket is private: aadhar_url holds a storage path, not a URL.
+  const signedUrls = useSignedUrlMap(hirers.map(h => h.aadhar_url));
 
   const stats = useMemo(() => {
     const cities = new Set(hirers.map(h => h.city).filter(Boolean));
@@ -190,8 +194,8 @@ export default function HirersManage({ onNav }) {
                       <span className={STATUS_BADGE[h.status] ?? 'badge badge-gray'}>{h.status}</span>
                     </td>
                     <td>
-                      {h.aadhar_url
-                        ? <a href={h.aadhar_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                      {signedUrls[h.aadhar_url]
+                        ? <a href={signedUrls[h.aadhar_url]} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View
                           </a>

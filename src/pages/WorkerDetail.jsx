@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
 import { queryKeys } from '../lib/queryKeys';
+import { useSignedUrl } from '../lib/storage';
 import {
   ArrowLeft, Loader2, Phone, MapPin, Cake, Briefcase, IndianRupee,
   Eye, EyeOff, Landmark, CheckCircle2, Clock, ScrollText, AlertTriangle,
@@ -82,6 +83,10 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
   const jobs = data?.jobs ?? [];
   const jobsError = data?.jobsError ?? null;
   const notFound = !loading && !worker;
+
+  // The bucket is private: these columns hold storage paths, not URLs.
+  const { url: photoUrl } = useSignedUrl(worker?.photo_url);
+  const { url: govIdUrl } = useSignedUrl(worker?.government_id_url);
 
   const toggleAccountReveal = (id) => {
     setRevealedAccounts(prev => {
@@ -164,8 +169,8 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
           {/* Profile card */}
           <div className="glass-card rounded-2xl p-6 flex flex-col sm:flex-row gap-6">
             <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 border border-[var(--divider)]">
-              {worker.photo_url
-                ? <img src={worker.photo_url} className="w-full h-full object-cover" alt={worker.full_name} />
+              {photoUrl
+                ? <img src={photoUrl} className="w-full h-full object-cover" alt={worker.full_name} />
                 : <div className="w-full h-full flex items-center justify-center text-2xl font-black text-[var(--mut)]">
                     {worker.full_name?.[0]?.toUpperCase() ?? '?'}
                   </div>
@@ -263,13 +268,13 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
               )}
 
               <div className="flex flex-wrap gap-4 mt-1">
-                {worker.photo_url && (
-                  <a href={worker.photo_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
+                {photoUrl && (
+                  <a href={photoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                     <Eye size={12} /> View Photo
                   </a>
                 )}
-                {worker.government_id_url && (
-                  <a href={worker.government_id_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
+                {govIdUrl && (
+                  <a href={govIdUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                     <Eye size={12} /> View Government ID
                   </a>
                 )}

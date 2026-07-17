@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
+import { useSignedUrlMap } from '../lib/storage';
 import {
   Users,
   HardHat,
@@ -37,6 +38,9 @@ export default function WorkersManage({ onNav }) {
       return data ?? [];
     },
   });
+
+  // The bucket is private: photo_url holds a storage path, not a URL.
+  const signedUrls = useSignedUrlMap(workers.map(w => w.photo_url));
 
   const stats = useMemo(() => {
     const cities = new Set(workers.map(w => w.city).filter(Boolean));
@@ -172,8 +176,8 @@ export default function WorkersManage({ onNav }) {
                           onClick={(e) => { e.stopPropagation(); w.photo_url && setPreview(w); }}
                           title="View photo"
                         >
-                          {w.photo_url
-                            ? <img src={w.photo_url} className="w-full h-full object-cover" alt={w.full_name} />
+                          {signedUrls[w.photo_url]
+                            ? <img src={signedUrls[w.photo_url]} className="w-full h-full object-cover" alt={w.full_name} />
                             : <div className="w-full h-full flex items-center justify-center text-xs font-black text-[var(--mut)]">
                               {w.full_name?.[0]?.toUpperCase() ?? '?'}
                             </div>
@@ -210,7 +214,7 @@ export default function WorkersManage({ onNav }) {
       {preview && (
         <Modal onClose={() => setPreview(null)}>
           <div className="flex flex-col items-center gap-4">
-            <img src={preview.photo_url} alt={preview.full_name}
+            <img src={signedUrls[preview.photo_url]} alt={preview.full_name}
               className="w-48 h-48 rounded-2xl object-cover border border-[var(--divider)]" />
             <p className="font-display font-bold text-lg text-[var(--ink)]">{preview.full_name}</p>
             <p className="text-sm text-[var(--mut)] font-semibold">{preview.mobile_no}</p>

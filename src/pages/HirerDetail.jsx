@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
+import { useSignedUrl } from '../lib/storage';
 import {
   ArrowLeft, Loader2, Phone, Mail, MapPin, Building2, User,
   Eye, EyeOff, Landmark, ScrollText, AlertTriangle,
@@ -56,6 +57,9 @@ export default function HirerDetail({ hirerId, onNav, onBack }) {
   const jobs = data?.jobs ?? [];
   const jobsError = data?.jobsError ?? null;
   const notFound = !loading && !hirer;
+
+  // The bucket is private: aadhar_url holds a storage path, not a URL.
+  const { url: aadhaarUrl } = useSignedUrl(hirer?.aadhar_url);
 
   const toggleAccountReveal = (id) => {
     setRevealedAccounts(prev => {
@@ -125,9 +129,9 @@ export default function HirerDetail({ hirerId, onNav, onBack }) {
                 )}
               </div>
 
-              {hirer.aadhar_url && (
+              {aadhaarUrl && (
                 <div className="flex flex-wrap gap-4 mt-1">
-                  <a href={hirer.aadhar_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
+                  <a href={aadhaarUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                     <Eye size={12} /> View Aadhaar
                   </a>
                 </div>

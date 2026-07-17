@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { logActivity } from '../lib/activityLog';
 import { queryKeys } from '../lib/queryKeys';
+import { useSignedUrlMap } from '../lib/storage';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, Building2, User, AlertTriangle } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -49,6 +50,9 @@ export default function Hirers() {
       return data ?? [];
     },
   });
+
+  // The bucket is private: aadhar_url holds a storage path, not a URL.
+  const signedUrls = useSignedUrlMap(hirers.map(h => h.aadhar_url));
 
   // Optimistically fade the row out and drop it from the cached query data,
   // then sync the DB in the background. If the DB call fails, restore the
@@ -231,8 +235,8 @@ export default function Hirers() {
                     </td>
                     {/* Aadhaar link — only for Individual */}
                     <td>
-                      {h.aadhar_url
-                        ? <a href={h.aadhar_url} target="_blank" rel="noreferrer"
+                      {signedUrls[h.aadhar_url]
+                        ? <a href={signedUrls[h.aadhar_url]} target="_blank" rel="noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
                             <Eye size={12} /> View
                           </a>

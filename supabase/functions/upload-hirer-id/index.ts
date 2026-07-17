@@ -11,8 +11,9 @@ const json = (body: unknown, status = 200) =>
   });
 
 // Mirrors the web app's uploadFile() (web/src/lib/storage.js): same bucket,
-// same folder/<id>.<ext> naming, upsert, and public URL — just routed through
-// this service-role function so the mobile client needs no storage access.
+// same folder/<uuid>.<ext> naming, and stores a path rather than a URL — just
+// routed through this service-role function so the mobile client needs no
+// storage access.
 const BUCKET = 'shramikfiles';
 const FOLDER = 'hireraadhaar';
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB, matching validateDocFile()
@@ -66,7 +67,7 @@ Deno.serve(async (req) => {
 
     const { data: hirer } = await supabaseAdmin
       .from('hirers')
-      .select('id, mobile_no')
+      .select('id, mobile_no, aadhar_url')
       .eq('auth_user_id', userData.user.id)
       .maybeSingle();
     if (!hirer) {
@@ -94,44 +95,49 @@ Deno.serve(async (req) => {
       return json({ error: 'Document must be smaller than 10 MB' }, 413);
     }
 
-    // Renamed to the hirer's mobile number, like the web app names files by id.
-    const mobile = String(hirer.mobile_no ?? '').replace(/\D/g, '');
-    if (!mobile) {
-      return json({ error: 'Hirer has no mobile number on file' }, 400);
-    }
+    // Keyed by a random UUID, never the hirer's mobile number: this bucket
+    // holds Aadhaar documents, and a guessable key made them retrievable by
+    // anyone who knew a phone number.
     const safeExt = String(ext ?? 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const path = `${FOLDER}/${mobile}.${safeExt}`;
+    const path = `${FOLDER}/${crypto.randomUUID()}.${safeExt}`;
     const contentType = contentTypeFor(safeExt);
 
-    // Ensure the bucket exists — public, to match the web app's public URLs.
+    // Ensure the bucket exists — PRIVATE. Reads go through short-lived signed
+    // URLs minted by admins; see 20260717120000_storage_private_rls.sql.
     // Idempotent: if it already exists, createBucket is skipped/ignored.
     const { data: buckets } = await supabaseAdmin.storage.listBuckets();
     if (!buckets?.some((b) => b.name === BUCKET)) {
-      const { error: bucketErr } = await supabaseAdmin.storage.createBucket(BUCKET, { public: true });
+      const { error: bucketErr } = await supabaseAdmin.storage.createBucket(BUCKET, { public: false });
       if (bucketErr && !bucketErr.message.toLowerCase().includes('already exists')) {
         console.error('createBucket failed:', bucketErr.message);
         return json({ error: `Could not initialize storage: ${bucketErr.message}` }, 500);
       }
     }
 
-    // Standard Supabase Storage upload (same as web/src/lib/storage.js).
+    // upsert is off — a UUID key cannot collide, so a conflict means a bug.
     const { error: upErr } = await supabaseAdmin.storage
       .from(BUCKET)
-      .upload(path, bytes, { upsert: true, contentType });
+      .upload(path, bytes, { upsert: false, contentType });
     if (upErr) {
       console.error('storage upload failed:', upErr.message);
       return json({ error: `Could not upload your ID: ${upErr.message}` }, 500);
     }
 
-    const { data: pub } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path);
-    const publicUrl = pub.publicUrl;
+    // Re-uploads get a fresh UUID, so drop the object the old path pointed at
+    // rather than leaving an orphaned Aadhaar in the bucket forever. Best
+    // effort: a failure here must not fail the upload the hirer just made.
+    const previousPath = String(hirer.aadhar_url ?? '');
+    if (previousPath && !previousPath.startsWith('http')) {
+      const { error: rmErr } = await supabaseAdmin.storage.from(BUCKET).remove([previousPath]);
+      if (rmErr) console.error('stale ID cleanup failed:', previousPath, rmErr.message);
+    }
 
     // Write the ID URL AND the rest of the onboarding profile with the service
     // role. These fields didn't persist before because the client's UPDATE on
     // hirers is blocked by RLS (0 rows updated, no error).
     const p = (profile && typeof profile === 'object') ? profile as Record<string, unknown> : {};
     const update: Record<string, unknown> = {
-      aadhar_url: publicUrl,
+      aadhar_url: path,
       completion_status: 'completed',
     };
     const ALLOWED_ENTITY = ['Individual', 'Contractor', 'Builder', 'Company'];
