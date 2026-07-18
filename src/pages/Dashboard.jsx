@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabaseRead } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import {
   Users, Briefcase, TrendingUp, IndianRupee, Clock, ArrowUpRight, ArrowDownRight,
@@ -30,14 +30,16 @@ export default function Dashboard({ onNav }) {
   const { data, isLoading: loading, refetch } = useQuery({
     queryKey: queryKeys.dashboardStats,
     queryFn: async () => {
+      // Read-only dashboard aggregation over full tables — routed to the read
+      // replica (supabaseRead) so it can't contend with the app on the primary.
       const [workersRes, hirersRes, jobsRes, paymentsRes, attendanceRes, appsRes, hrsRes] = await Promise.all([
-        supabase.from('labourers').select('*').order('created_at', { ascending: false }),
-        supabase.from('hirers').select('*').order('created_at', { ascending: false }),
-        supabase.from('jobs').select('*').order('created_at', { ascending: false }),
-        supabase.from('payments').select('*').order('created_at', { ascending: false }),
-        supabase.from('attendance').select('*').order('created_at', { ascending: false }),
-        supabase.from('job_applications').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('job_hire_requests').select('*').order('created_at', { ascending: false }).limit(200)
+        supabaseRead.from('labourers').select('*').order('created_at', { ascending: false }),
+        supabaseRead.from('hirers').select('*').order('created_at', { ascending: false }),
+        supabaseRead.from('jobs').select('*').order('created_at', { ascending: false }),
+        supabaseRead.from('payments').select('*').order('created_at', { ascending: false }),
+        supabaseRead.from('attendance').select('*').order('created_at', { ascending: false }),
+        supabaseRead.from('job_applications').select('*').order('created_at', { ascending: false }).limit(200),
+        supabaseRead.from('job_hire_requests').select('*').order('created_at', { ascending: false }).limit(200)
       ]);
 
       return {

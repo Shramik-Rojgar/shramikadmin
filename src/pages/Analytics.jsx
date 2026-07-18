@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabaseRead } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import {
   TrendingUp, Users, Briefcase, IndianRupee, CreditCard, UserCheck, ShieldAlert,
@@ -41,12 +41,15 @@ export default function Analytics() {
   const { data, isLoading: loading, refetch } = useQuery({
     queryKey: queryKeys.analyticsBundle,
     queryFn: async () => {
+      // Heavy full-table pulls aggregated client-side — routed to the read
+      // replica (supabaseRead) so they can't slow the primary that serves the
+      // app. Pure reads, no read-your-writes expectation.
       const [jobsRes, workersRes, hirersRes, paymentsRes, attendanceRes] = await Promise.all([
-        supabase.from('jobs').select('*').limit(FETCH_LIMIT),
-        supabase.from('labourers').select('*').limit(FETCH_LIMIT),
-        supabase.from('hirers').select('*').limit(FETCH_LIMIT),
-        supabase.from('payments').select('*').limit(FETCH_LIMIT),
-        supabase.from('attendance').select('*').limit(FETCH_LIMIT * 2)
+        supabaseRead.from('jobs').select('*').limit(FETCH_LIMIT),
+        supabaseRead.from('labourers').select('*').limit(FETCH_LIMIT),
+        supabaseRead.from('hirers').select('*').limit(FETCH_LIMIT),
+        supabaseRead.from('payments').select('*').limit(FETCH_LIMIT),
+        supabaseRead.from('attendance').select('*').limit(FETCH_LIMIT * 2)
       ]);
 
       return {

@@ -62,6 +62,34 @@ not per-instance appetite. 10 per instance is a sane start; revisit with data.
 `enabled = true`) so session-state bugs surface on a laptop, not during a
 scale event. Point local backend/scripts at 54329, not 54322 (direct).
 
+## Read replica for the admin dashboard (analytics isolation)
+
+**Why:** the admin `Dashboard` and `Analytics` pages pull whole tables
+(`select('*')` over labourers/hirers/jobs/payments/attendance) and aggregate in
+JS. On the shared primary, one admin loading Analytics competes for CPU with
+every worker's Browse Jobs. A read replica moves that heavy read traffic off the
+primary so analytics can't slow the app.
+
+**Code seam (already in place):** `src/lib/supabase.js` exports `supabaseRead`.
+With no replica configured it *is* the primary client (no-op). Analytics.jsx and
+Dashboard.jsx already read through it; write/management pages stay on `supabase`.
+
+**To turn it on (paid, dashboard):**
+1. Dashboard → Settings → Infrastructure → **Read Replicas** → add one in the
+   same region (ap-southeast-1). Requires a paid compute tier.
+2. Copy the replica's (or load balancer's) **Data API URL**.
+3. Set `VITE_SUPABASE_REPLICA_URL=<that url>` in admin/.env (and in Vercel env),
+   redeploy. Same anon key. Done — no code change.
+
+**Do NOT route through the replica:**
+- Anything that writes then re-reads (settlements, approve/reject) — replicas lag
+  the primary by up to a few seconds, so you'd read stale data (read-your-writes).
+- Currently only Analytics + Dashboard are routed; both are pure reads.
+
+**When it's worth it:** not now (0 jobs — the primary is idle). Provision when
+Analytics load times climb or the primary's CPU shows contention during admin
+use. The seam exists so that day is an env var, not a refactor.
+
 ## Dashboard settings to verify (needs login — cannot be done from CLI)
 
 Dashboard → Project Settings → Database → Connection pooling:
