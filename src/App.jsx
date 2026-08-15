@@ -13,6 +13,7 @@ import PaymentsSettlements from './pages/PaymentsSettlements';
 import Jobs from './pages/Jobs';
 import Analytics from './pages/Analytics';
 import UsersPage from './pages/Users';
+import FieldExecutives from './pages/FieldExecutives';
 import Logs from './pages/Logs';
 import WorkerDetail from './pages/WorkerDetail';
 import JobDetail from './pages/JobDetail';
@@ -201,7 +202,7 @@ export default function App() {
     'dashboard', 'workers-manage', 'workers-approve', 'workers',
     'hirers', 'hirers-manage', 'hirers-approve',
     'payments', 'payments-verification', 'payments-settlements',
-    'jobs', 'analytics', 'users', 'logs', 'settings',
+    'jobs', 'analytics', 'users', 'field-executives', 'logs', 'settings',
   ];
   const isKnownPage = KNOWN_PAGES.includes(page) || DETAIL_PREFIXES.some(p => page.startsWith(p));
 
@@ -233,6 +234,7 @@ export default function App() {
       case 'jobs':            return <Jobs onNav={setPage} />;
       case 'analytics':       return <Analytics />;
       case 'users':           return <UsersPage userRole={userRole} />;
+      case 'field-executives': return <FieldExecutives userRole={userRole} />;
       case 'logs':            return <Logs />;
       case 'settings':        return <Placeholder title="Settings" />;
       default:                return <NotFound onNav={setPage} />;

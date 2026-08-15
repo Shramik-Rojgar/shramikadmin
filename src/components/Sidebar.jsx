@@ -51,8 +51,9 @@ const NAV = [
   },
   { id: 'jobs',      label: 'Job Postings', icon: Briefcase },
   { id: 'analytics', label: 'Analytics',    icon: BarChart2 },
-  { id: 'users',     label: 'Admin Users',  icon: Users },
-  { id: 'logs',      label: 'Logs',         icon: ScrollText },
+  { id: 'users',            label: 'Admin Users',      icon: Users },
+  { id: 'field-executives', label: 'Field Executives', icon: HardHat },
+  { id: 'logs',             label: 'Logs',             icon: ScrollText },
   { id: 'settings',  label: 'Settings',     icon: Settings },
 ];
 

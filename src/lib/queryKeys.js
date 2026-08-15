@@ -25,5 +25,6 @@ export const queryKeys = {
   analyticsBundle: ['analytics', 'bundle'],
 
   adminUsers: ['admin_users'],
+  fieldExecutives: ['field_executives'],
   activityLogs: ['admin_activity_logs'],
 };
