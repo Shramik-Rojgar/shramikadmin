@@ -14,6 +14,15 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '../components/ui/pagination';
 
 const STATUS_BADGE = {
   pending: 'badge badge-orange',
@@ -77,6 +86,47 @@ export default function WorkersManage({ onNav }) {
 
   const totalPages = Math.ceil(filtered.length / rowsPerPage);
   const paginatedWorkers = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+  const renderPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, 'ellipsis', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages);
+      }
+    }
+
+    return pages.map((page, i) => {
+      if (page === 'ellipsis') {
+        return (
+          <PaginationItem key={`ellipsis-${i}`}>
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+      return (
+        <PaginationItem key={page}>
+          <PaginationLink
+            href="#"
+            isActive={page === currentPage}
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentPage(page);
+            }}
+          >
+            {page}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    });
+  };
 
   // ── Stat card config ──────────────────────────────────────
   const STAT_CARDS = [
@@ -226,22 +276,31 @@ export default function WorkersManage({ onNav }) {
                 <p className="text-sm font-semibold text-[var(--mut)]">
                   Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filtered.length)} of {filtered.length}
                 </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1.5 rounded-lg glass text-sm font-semibold text-[var(--mut)] hover:text-[var(--ink)] disabled:opacity-50 cursor-pointer"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 rounded-lg glass text-sm font-semibold text-[var(--mut)] hover:text-[var(--ink)] disabled:opacity-50 cursor-pointer"
-                  >
-                    Next
-                  </button>
-                </div>
+                <Pagination className="justify-end w-auto mx-0">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        href="#" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage > 1) setCurrentPage(p => Math.max(1, p - 1));
+                        }} 
+                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+                    {renderPageNumbers()}
+                    <PaginationItem>
+                      <PaginationNext 
+                        href="#" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage < totalPages) setCurrentPage(p => Math.min(totalPages, p + 1));
+                        }}
+                        className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
               </div>
             )}
           </>
