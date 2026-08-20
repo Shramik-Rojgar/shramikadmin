@@ -26,5 +26,6 @@ export const queryKeys = {
 
   adminUsers: ['admin_users'],
   fieldExecutives: ['field_executives'],
+  leads: ['leads'],
   activityLogs: ['admin_activity_logs'],
 };

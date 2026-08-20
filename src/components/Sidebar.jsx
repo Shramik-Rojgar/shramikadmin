@@ -18,6 +18,7 @@ import {
   BadgeCheck,
   Banknote,
   ScrollText,
+  Target,
 } from 'lucide-react';
 
 const NAV = [
@@ -53,6 +54,7 @@ const NAV = [
   { id: 'analytics', label: 'Analytics',    icon: BarChart2 },
   { id: 'users',            label: 'Admin Users',      icon: Users },
   { id: 'field-executives', label: 'Field Executives', icon: HardHat },
+  { id: 'leads',            label: 'Leads',            icon: Target },
   { id: 'logs',             label: 'Logs',             icon: ScrollText },
   { id: 'settings',  label: 'Settings',     icon: Settings },
 ];
