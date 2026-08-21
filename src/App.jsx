@@ -222,7 +222,7 @@ export default function App() {
     }
 
     switch (page) {
-      case 'dashboard':       return <Dashboard />;
+      case 'dashboard':       return <Dashboard onNav={setPage} />;
       case 'workers-manage':  return <WorkersManage onNav={setPage} />;
       case 'workers-approve': return <Workers />;
       case 'workers':         return <WorkersManage onNav={setPage} />;
