@@ -108,7 +108,8 @@ export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, 
       style={{ width: collapsed ? 64 : 240 }}
     >
       {/* Brand + collapse toggle */}
-      <div className="flex items-center border-b border-[var(--divider)]" style={{ minHeight: 68, padding: collapsed ? '0 12px' : '0 16px', gap: 10 }}>
+      {/* Brand + collapse toggle */}
+      <div className="flex items-center border-b border-[var(--divider)] relative" style={{ minHeight: 68, padding: collapsed ? '0 12px' : '0 16px', gap: 10 }}>
         {/* Logo icon — always visible */}
         <div
           className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -130,16 +131,15 @@ export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, 
           </div>
         )}
 
-        {/* Toggle button */}
+        {/* Floating Toggle button */}
         <button
           onClick={onToggleCollapse}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--mut)] hover:text-[var(--ink)] hover:bg-black/5 transition-colors cursor-pointer"
-          style={{ marginLeft: collapsed ? 0 : 'auto' }}
+          className="absolute -right-3.5 top-6 flex-shrink-0 w-7 h-7 rounded-full bg-white border border-[var(--divider)] flex items-center justify-center text-[var(--mut)] hover:text-[var(--ink)] hover:bg-black/5 transition-colors cursor-pointer z-50 shadow-sm"
         >
           {collapsed
-            ? <PanelLeftOpen size={15} strokeWidth={2} />
-            : <PanelLeftClose size={15} strokeWidth={2} />
+            ? <PanelLeftOpen size={14} strokeWidth={2} />
+            : <PanelLeftClose size={14} strokeWidth={2} />
           }
         </button>
       </div>
