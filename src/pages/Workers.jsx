@@ -5,6 +5,15 @@ import { logActivity } from '../lib/activityLog';
 import { queryKeys } from '../lib/queryKeys';
 import { useSignedUrlMap } from '../lib/storage';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, AlertTriangle } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '../components/ui/pagination';
 
 const STATUS_BADGE = {
   pending:  'badge badge-orange',
@@ -37,6 +46,14 @@ export default function Workers() {
     toastTimeout.current = setTimeout(() => setToast(null), 4500);
   }, []);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+
   const queryKey = queryKeys.workersByStatus(filter);
   const { data: workers = [], isLoading: loading, refetch, isFetching } = useQuery({
     queryKey,
@@ -52,10 +69,13 @@ export default function Workers() {
     },
   });
 
+  const totalPages = Math.ceil(workers.length / rowsPerPage);
+  const paginatedWorkers = workers.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
   // The bucket is private: one signed URL per distinct path, shared by the
   // table cells and the modal.
   const signedUrls = useSignedUrlMap(
-    workers.flatMap(w => [w.photo_path, w.government_id_path]),
+    paginatedWorkers.flatMap(w => [w.photo_path, w.government_id_path]),
   );
 
   // Optimistically fade the row out and drop it from the cached query data,
@@ -121,6 +141,47 @@ export default function Workers() {
 
   const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
 
+  const renderPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, 'ellipsis', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages);
+      }
+    }
+
+    return pages.map((page, i) => {
+      if (page === 'ellipsis') {
+        return (
+          <PaginationItem key={`ellipsis-${i}`}>
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+      return (
+        <PaginationItem key={page}>
+          <PaginationLink
+            href="#"
+            isActive={page === currentPage}
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentPage(page);
+            }}
+          >
+            {page}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
 
@@ -171,111 +232,147 @@ export default function Workers() {
             <p className="text-[var(--mut)] font-semibold text-sm">No {filter === 'all' ? '' : filter} workers found.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Worker</th>
-                  <th>Mobile</th>
-                  <th>Skills</th>
-                  <th>Experience</th>
-                  <th>Wage/day</th>
-                  <th>Registered</th>
-                  <th>Status</th>
-                  <th>Docs</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workers.map(w => (
-                  <tr
-                    key={w.id}
-                    className="transition-all duration-[260ms] ease-out"
-                    style={removingIds.has(w.id)
-                      ? { opacity: 0, transform: 'scale(0.98) translateX(6px)' }
-                      : { opacity: 1, transform: 'none' }
-                    }
-                  >
-                    {/* Name + avatar */}
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-slate-100 border border-[var(--divider)] cursor-pointer"
-                          onClick={() => w.photo_path && setPreview(w)}
-                          title="View photo"
-                        >
-                          {signedUrls[w.photo_path]
-                            ? <img src={signedUrls[w.photo_path]} className="w-full h-full object-cover" alt={w.full_name} />
-                            : <div className="w-full h-full flex items-center justify-center text-xs font-black text-[var(--mut)]">
-                                {w.full_name?.[0]?.toUpperCase() ?? '?'}
-                              </div>
-                          }
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[var(--ink)] text-sm">{w.full_name}</p>
-                          {w.labour_id && <p className="text-[10px] text-[var(--mut)] font-semibold">{w.labour_id}</p>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-[var(--mut)]">{w.mobile_no}</td>
-                    <td className="max-w-[160px]">
-                      <span className="text-xs font-semibold text-[var(--ink)]">{skills(w)}</span>
-                    </td>
-                    <td className="text-[var(--mut)] text-xs font-semibold">{w.experience_level ?? '—'}</td>
-                    <td className="font-semibold">₹{w.daily_wage ?? '—'}</td>
-                    <td className="text-[var(--mut)] text-xs">{fmt(w.created_at)}</td>
-                    <td>
-                      <span className={STATUS_BADGE[w.status] ?? 'badge badge-gray'}>
-                        {w.status}
-                      </span>
-                      {w.status === 'rejected' && w.rejection_reason && (
-                        <p className="text-[10px] text-[#C91D5E] mt-1 max-w-[120px] truncate" title={w.rejection_reason}>
-                          {w.rejection_reason}
-                        </p>
-                      )}
-                    </td>
-
-                    {/* Govt ID link */}
-                    <td>
-                      {signedUrls[w.government_id_path]
-                        ? <a href={signedUrls[w.government_id_path]} target="_blank" rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
-                            <Eye size={12} /> View ID
-                          </a>
-                        : <span className="text-xs text-[var(--mut)]">—</span>
-                      }
-                    </td>
-
-                    {/* Approve / Reject */}
-                    <td>
-                      <div className="flex items-center gap-2">
-                        {w.status !== 'approved' && (
-                          <button
-                            onClick={() => approve(w)}
-                            disabled={removingIds.has(w.id)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#E4F7EC] text-[#16B364] text-xs font-bold hover:bg-[#c8f0d8] transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            <CheckCircle size={12} strokeWidth={2.5} />
-                            Approve
-                          </button>
-                        )}
-                        {w.status !== 'rejected' && (
-                          <button
-                            onClick={() => openReject(w)}
-                            disabled={removingIds.has(w.id)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[rgba(201,29,94,0.08)] text-[#C91D5E] text-xs font-bold hover:bg-[rgba(201,29,94,0.15)] transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            <XCircle size={12} strokeWidth={2.5} />
-                            Reject
-                          </button>
-                        )}
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Worker</th>
+                    <th>Mobile</th>
+                    <th>Skills</th>
+                    <th>Experience</th>
+                    <th>Wage/day</th>
+                    <th>Registered</th>
+                    <th>Status</th>
+                    <th>Docs</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedWorkers.map(w => (
+                    <tr
+                      key={w.id}
+                      className="transition-all duration-[260ms] ease-out"
+                      style={removingIds.has(w.id)
+                        ? { opacity: 0, transform: 'scale(0.98) translateX(6px)' }
+                        : { opacity: 1, transform: 'none' }
+                      }
+                    >
+                      {/* Name + avatar */}
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-slate-100 border border-[var(--divider)] cursor-pointer"
+                            onClick={() => w.photo_path && setPreview(w)}
+                            title="View photo"
+                          >
+                            {signedUrls[w.photo_path]
+                              ? <img src={signedUrls[w.photo_path]} className="w-full h-full object-cover" alt={w.full_name} />
+                              : <div className="w-full h-full flex items-center justify-center text-xs font-black text-[var(--mut)]">
+                                  {w.full_name?.[0]?.toUpperCase() ?? '?'}
+                                </div>
+                            }
+                          </div>
+                          <div>
+                            <p className="font-semibold text-[var(--ink)] text-sm">{w.full_name}</p>
+                            {w.labour_id && <p className="text-[10px] text-[var(--mut)] font-semibold">{w.labour_id}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-[var(--mut)]">{w.mobile_no}</td>
+                      <td className="max-w-[160px]">
+                        <span className="text-xs font-semibold text-[var(--ink)]">{skills(w)}</span>
+                      </td>
+                      <td className="text-[var(--mut)] text-xs font-semibold">{w.experience_level ?? '—'}</td>
+                      <td className="font-semibold">₹{w.daily_wage ?? '—'}</td>
+                      <td className="text-[var(--mut)] text-xs">{fmt(w.created_at)}</td>
+                      <td>
+                        <span className={STATUS_BADGE[w.status] ?? 'badge badge-gray'}>
+                          {w.status}
+                        </span>
+                        {w.status === 'rejected' && w.rejection_reason && (
+                          <p className="text-[10px] text-[#C91D5E] mt-1 max-w-[120px] truncate" title={w.rejection_reason}>
+                            {w.rejection_reason}
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Govt ID link */}
+                      <td>
+                        {signedUrls[w.government_id_path]
+                          ? <a href={signedUrls[w.government_id_path]} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rani)] hover:underline">
+                              <Eye size={12} /> View ID
+                            </a>
+                          : <span className="text-xs text-[var(--mut)]">—</span>
+                        }
+                      </td>
+
+                      {/* Approve / Reject */}
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {w.status !== 'approved' && (
+                            <button
+                              onClick={() => approve(w)}
+                              disabled={removingIds.has(w.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#E4F7EC] text-[#16B364] text-xs font-bold hover:bg-[#c8f0d8] transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              <CheckCircle size={12} strokeWidth={2.5} />
+                              Approve
+                            </button>
+                          )}
+                          {w.status !== 'rejected' && (
+                            <button
+                              onClick={() => openReject(w)}
+                              disabled={removingIds.has(w.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[rgba(201,29,94,0.08)] text-[#C91D5E] text-xs font-bold hover:bg-[rgba(201,29,94,0.15)] transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              <XCircle size={12} strokeWidth={2.5} />
+                              Reject
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--divider)]">
+                <p className="text-sm font-semibold text-[var(--mut)]">
+                  Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, workers.length)} of {workers.length}
+                </p>
+                <Pagination className="justify-end w-auto mx-0">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        href="#" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage > 1) setCurrentPage(p => Math.max(1, p - 1));
+                        }} 
+                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+                    {renderPageNumbers()}
+                    <PaginationItem>
+                      <PaginationNext 
+                        href="#" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage < totalPages) setCurrentPage(p => Math.min(totalPages, p + 1));
+                        }}
+                        className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
+          </>
         )}
       </div>
 

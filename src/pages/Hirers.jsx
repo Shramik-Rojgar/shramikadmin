@@ -5,6 +5,15 @@ import { logActivity } from '../lib/activityLog';
 import { queryKeys } from '../lib/queryKeys';
 import { useSignedUrlMap } from '../lib/storage';
 import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, X, Building2, User, AlertTriangle } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '../components/ui/pagination';
 
 const STATUS_BADGE = {
   pending: 'badge badge-orange',
@@ -21,6 +30,13 @@ export default function Hirers() {
   const [reason,    setReason]    = useState('');
   const [removingIds, setRemovingIds] = useState(() => new Set()); // ids mid fade-out animation
   const [toast,     setToast]     = useState(null);   // { type: 'success' | 'error', message }
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
 
   const removalTimeouts = useRef({});
   const toastTimeout = useRef(null);
@@ -122,6 +138,50 @@ export default function Hirers() {
 
   const fullName = (h) => `${h.first_name} ${h.last_name}`;
 
+  const totalPages = Math.ceil(hirers.length / rowsPerPage);
+  const paginatedHirers = hirers.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+  const renderPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, 'ellipsis', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages);
+      }
+    }
+
+    return pages.map((page, i) => {
+      if (page === 'ellipsis') {
+        return (
+          <PaginationItem key={`ellipsis-${i}`}>
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+      return (
+        <PaginationItem key={page}>
+          <PaginationLink
+            href="#"
+            isActive={page === currentPage}
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentPage(page);
+            }}
+          >
+            {page}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
 
@@ -189,7 +249,7 @@ export default function Hirers() {
                 </tr>
               </thead>
               <tbody>
-                {hirers.map(h => (
+                {paginatedHirers.map(h => (
                   <tr
                     key={h.id}
                     className="transition-all duration-[260ms] ease-out"
@@ -272,6 +332,40 @@ export default function Hirers() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {/* Pagination Controls */}
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--divider)]">
+            <p className="text-sm font-semibold text-[var(--mut)]">
+              Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, hirers.length)} of {hirers.length}
+            </p>
+            <Pagination className="justify-end w-auto mx-0">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage > 1) setCurrentPage(p => Math.max(1, p - 1));
+                    }} 
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+                {renderPageNumbers()}
+                <PaginationItem>
+                  <PaginationNext 
+                    href="#" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage < totalPages) setCurrentPage(p => Math.min(totalPages, p + 1));
+                    }}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         )}
       </div>
