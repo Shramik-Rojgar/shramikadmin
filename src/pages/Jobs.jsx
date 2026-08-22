@@ -274,7 +274,7 @@ export default function Jobs({ onNav }) {
       </div>
 
       {/* 1. Dashboard Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
         <StatCard label="Total Jobs" value={kpis.total} icon={Briefcase} color="#7A3BFF" />
         <StatCard label="Hiring" value={kpis.hiring} icon={Clock} color="#FF8A1E" />
         <StatCard label="Ongoing" value={kpis.ongoing} icon={Play} color="#16B364" />

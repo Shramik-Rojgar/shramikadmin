@@ -21,7 +21,7 @@ import {
   Target,
 } from 'lucide-react';
 
-const NAV = [
+export const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   {
     id: 'workers',
@@ -64,7 +64,7 @@ const NAV = [
 // the nav section it logically belongs to, so that section stays
 // highlighted/expanded even when viewing a page reached by drilling in
 // (e.g. Manage Workers → a worker's row → worker-detail/<id>).
-const sectionOf = (page) => {
+export const sectionOf = (page) => {
   if (!page) return null;
   if (page.startsWith('workers') || page.startsWith('worker-detail/')) return 'workers';
   if (page.startsWith('hirers')  || page.startsWith('hirer-detail/'))  return 'hirers';
@@ -73,16 +73,18 @@ const sectionOf = (page) => {
   return page;
 };
 
+export function filterNav(userRole) {
+  if (userRole === 'verification_officer') {
+    return NAV.filter(item => ['workers', 'hirers'].includes(item.id));
+  }
+  if (userRole === 'finance_admin') {
+    return NAV.filter(item => ['payments', 'jobs'].includes(item.id));
+  }
+  return NAV;
+}
+
 export default function Sidebar({ active, userRole, onNav, onLogout, collapsed, onToggleCollapse }) {
-  const filteredNav = useMemo(() => {
-    if (userRole === 'verification_officer') {
-      return NAV.filter(item => ['workers', 'hirers'].includes(item.id));
-    }
-    if (userRole === 'finance_admin') {
-      return NAV.filter(item => ['payments', 'jobs'].includes(item.id));
-    }
-    return NAV;
-  }, [userRole]);
+  const filteredNav = useMemo(() => filterNav(userRole), [userRole]);
 
   const activeSection = sectionOf(active);
 

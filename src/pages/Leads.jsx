@@ -202,7 +202,7 @@ export default function Leads() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KPIItem label="Total" value={kpis.total} color="#7A3BFF" icon={Filter} />
         <KPIItem label="Uncontacted" value={kpis.uncontacted} color="#FF8A1E" icon={Circle} />
         <KPIItem label="Contacted" value={kpis.contacted} color="#16B364" icon={CheckCircle2} />

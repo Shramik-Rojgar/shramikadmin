@@ -271,7 +271,7 @@ export default function UsersPage({ userRole }) {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPIItem label="Total Staff" value={kpis.total} color="#7A3BFF" icon={Users} />
         <KPIItem label="Active Users" value={kpis.active} color="#16B364" icon={CheckCircle2} />
         <KPIItem label="Inactive Users" value={kpis.inactive} color="#C91D5E" icon={XCircle} />

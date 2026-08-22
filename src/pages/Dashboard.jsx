@@ -249,7 +249,7 @@ export default function Dashboard({ onNav }) {
       </div>
 
       {/* Row 2: Status Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatusCard mini label="Pending Workers" value={pendingWorkerApproval} color="#FF8A1E" bg="bg-[#FF8A1E]/10" />
         <StatusCard mini label="Pending Hirers" value={pendingHirerApproval} color="#FF8A1E" bg="bg-[#FF8A1E]/10" />
         <StatusCard mini label="Ongoing Jobs" value={ongoingJobsCount} color="#16B364" bg="bg-[#16B364]/10" />

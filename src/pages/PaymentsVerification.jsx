@@ -113,7 +113,7 @@ export default function PaymentsVerification() {
     <div className="flex flex-col gap-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-black text-3xl tracking-tight text-[var(--ink)]">Payment Verification</h1>
           <p className="text-sm text-[var(--mut)] font-semibold mt-1">Review and verify bank accounts submitted by workers and hirers</p>
@@ -130,7 +130,7 @@ export default function PaymentsVerification() {
 
       {/* Tabs + owner filter */}
       <Tabs value={tab} onValueChange={setTab} className="flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <TabsList className="h-auto w-fit gap-2 rounded-xl bg-transparent p-0">
             {TABS.map(t => (
               <TabsTrigger

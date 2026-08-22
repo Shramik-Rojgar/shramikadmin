@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import Sidebar from './components/Sidebar';
+import MobileShell from './components/MobileShell';
 import BackgroundOrbs from './components/BackgroundOrbs';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -20,7 +21,7 @@ import WorkerDetail from './pages/WorkerDetail';
 import JobDetail from './pages/JobDetail';
 import HirerDetail from './pages/HirerDetail';
 import NotFound from './pages/NotFound';
-import { Loader2, Monitor, ShieldCheck } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 function Placeholder({ title }) {
   return (
@@ -52,7 +53,7 @@ export default function App() {
       .from('admin_users')
       .select('role')
       .eq('id', session.user.id)
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
         setUserRole(data?.role || 'admin');
       });
@@ -128,42 +129,6 @@ export default function App() {
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
-
-  // ── Mobile? Block everything ───────────────────────────
-  if (isMobile) {
-    return (
-      <div className="mobile-blocker" style={{ display: 'flex' }}>
-        <BackgroundOrbs />
-        <div className="mobile-blocker-card">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'var(--grad)' }}
-          >
-            <Monitor size={28} color="#fff" strokeWidth={2} />
-          </div>
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <ShieldCheck size={18} className="text-[var(--accent)]" strokeWidth={2.5} />
-            <span
-              className="font-display font-black text-lg tracking-tight"
-              style={{
-                background: 'var(--grad)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              SHRAMIK
-            </span>
-          </div>
-          <h2 className="font-display font-bold text-xl text-[var(--ink)] mb-2">
-            Desktop Only
-          </h2>
-          <p className="text-sm text-[var(--mut)] font-semibold leading-relaxed max-w-xs mx-auto">
-            The Admin Console is optimized for larger screens. Please switch to a <strong className="text-[var(--ink)]">desktop</strong> or <strong className="text-[var(--ink)]">tablet</strong> to continue.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   // ── Restore session on mount & listen for changes ──────
   useEffect(() => {
@@ -255,17 +220,28 @@ export default function App() {
   return (
     <div className="min-h-screen font-sans text-[var(--ink)]">
       <BackgroundOrbs />
-      <Sidebar
-        active={page}
-        userRole={userRole}
-        onNav={setPage}
-        onLogout={handleLogout}
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed(c => !c)}
-      />
-      <main className="main-content" style={{ marginLeft: collapsed ? 64 : 240 }}>
-        {renderPage()}
-      </main>
+      {isMobile ? (
+        <>
+          <MobileShell active={page} userRole={userRole} onNav={setPage} onLogout={handleLogout} />
+          <main className="main-content mobile">
+            {renderPage()}
+          </main>
+        </>
+      ) : (
+        <>
+          <Sidebar
+            active={page}
+            userRole={userRole}
+            onNav={setPage}
+            onLogout={handleLogout}
+            collapsed={collapsed}
+            onToggleCollapse={() => setCollapsed(c => !c)}
+          />
+          <main className="main-content" style={{ marginLeft: collapsed ? 64 : 240 }}>
+            {renderPage()}
+          </main>
+        </>
+      )}
     </div>
   );
 }

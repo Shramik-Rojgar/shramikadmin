@@ -188,7 +188,7 @@ export default function Workers() {
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-black text-3xl tracking-tight text-[var(--ink)]">Workers</h1>
           <p className="text-sm text-[var(--mut)] font-semibold mt-1">Review and verify labourer registrations</p>

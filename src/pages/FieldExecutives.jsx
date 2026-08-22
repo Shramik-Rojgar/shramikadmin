@@ -178,7 +178,7 @@ export default function FieldExecutives({ userRole }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPIItem label="Total" value={kpis.total} color="#7A3BFF" icon={Users} />
         <KPIItem label="Approved" value={kpis.approved} color="#16B364" icon={CheckCircle2} />
         <KPIItem label="Pending" value={kpis.pending} color="#FF8A1E" icon={ShieldCheck} />

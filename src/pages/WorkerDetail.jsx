@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const EDITABLE_FIELDS = ['full_name', 'mobile_no', 'date_of_birth', 'gender', 'city', 'state', 'experience_level', 'daily_wage', 'skill_1', 'skill_2', 'skill_3'];
+const EDITABLE_FIELDS = ['full_name', 'mobile_no', 'date_of_birth', 'gender', 'locality', 'city', 'state', 'experience_level', 'daily_wage', 'skill_1', 'skill_2', 'skill_3'];
 
 const input = 'w-full rounded-lg border border-[var(--divider)] bg-white/80 px-2.5 py-1.5 text-sm font-medium text-[var(--ink)] focus:outline-none focus:ring-1 focus:ring-[var(--rani)]';
 
@@ -232,6 +232,7 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <EditField label="Mobile" value={form.mobile_no} onChange={v => setField('mobile_no', v)} />
                   <EditField label="Date of Birth" type="date" value={form.date_of_birth} onChange={v => setField('date_of_birth', v)} />
+                  <EditField label="Locality" value={form.locality} onChange={v => setField('locality', v)} />
                   <EditField label="City" value={form.city} onChange={v => setField('city', v)} />
                   <EditField label="State" value={form.state} onChange={v => setField('state', v)} />
                   <EditField label="Experience" value={form.experience_level} onChange={v => setField('experience_level', v)} />
@@ -242,6 +243,7 @@ export default function WorkerDetail({ workerId, onNav, onBack }) {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <InfoItem icon={Phone} label="Mobile" value={worker.mobile_no} />
                   <InfoItem icon={Cake} label="Date of Birth" value={fmtDate(worker.date_of_birth)} />
+                  <InfoItem icon={MapPin} label="Locality" value={worker.locality ?? '—'} />
                   <InfoItem icon={MapPin} label="Location" value={[worker.city, worker.state].filter(Boolean).join(', ') || '—'} />
                   <InfoItem icon={Briefcase} label="Experience" value={worker.experience_level ?? '—'} />
                   <InfoItem icon={IndianRupee} label="Daily Wage" value={fmtMoney(worker.daily_wage)} />

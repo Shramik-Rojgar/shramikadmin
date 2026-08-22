@@ -140,7 +140,7 @@ export default function WorkersManage({ onNav }) {
     <div className="flex flex-col gap-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-black text-3xl tracking-tight text-[var(--ink)]">Manage Workers</h1>
           <p className="text-sm text-[var(--mut)] font-semibold mt-1">Overview and directory of all approved workers</p>

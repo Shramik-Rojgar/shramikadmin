@@ -11,7 +11,7 @@ export async function logActivity(action, { entityType, entityId, description, m
       .from('admin_users')
       .select('full_name')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     await supabase.from('admin_activity_logs').insert({
       admin_id: user.id,

@@ -185,7 +185,7 @@ export default function JobDetail({ jobId, onBack }) {
             <h3 className="text-xs font-black uppercase tracking-wider text-[var(--mut)] mb-2.5 flex items-center gap-2">
               <Calendar size={12} /> Job Information
             </h3>
-            <div className="grid grid-cols-3 gap-4 bg-white/40 rounded-xl p-4 border border-[var(--divider)]">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/40 rounded-xl p-4 border border-[var(--divider)]">
               <InfoPair label="Workers Required" value={job.workers_required} />
               <InfoPair label="Workers Selected" value={job.selected_workers_count} />
               <InfoPair label="Experience Required" value={job.experience_required} />

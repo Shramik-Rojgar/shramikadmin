@@ -63,7 +63,7 @@ export default function Login({ onAuth }) {
       .from('admin_users')
       .select('*')
       .eq('id', data.user.id)
-      .single();
+      .maybeSingle();
 
     if (dbError || !adminUser) {
       await supabase.auth.signOut();
